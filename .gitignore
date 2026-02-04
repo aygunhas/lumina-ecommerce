@@ -1,0 +1,32 @@
+# Bu dosya Git'in hangi dosya/klasörleri takip ETMEMESİ gerektiğini söyler.
+# Gerekli: Hassas bilgiler ve otomatik oluşan dosyalar repoda olmamalı.
+
+# Ortam ayarları (şifreler burada - asla paylaşma)
+.env
+
+# Composer ile yüklenen kütüphaneler
+/vendor/
+
+# Oturum, önbellek, log dosyaları
+/storage/logs/*.log
+/storage/cache/*
+/storage/sessions/*
+!/storage/logs/.gitkeep
+!/storage/cache/.gitkeep
+!/storage/sessions/.gitkeep
+
+# Yüklenen kullanıcı dosyaları (ürün resimleri vb. sunucuda kalır)
+/public/uploads/*
+!/public/uploads/.gitkeep
+!/public/uploads/products/.gitkeep
+!/public/uploads/categories/.gitkeep
+
+# IDE ve işletim sistemi
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Yedekler
+/storage/backups/*
+!/storage/backups/.gitkeep
