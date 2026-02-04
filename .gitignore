@@ -30,3 +30,7 @@ Thumbs.db
 # Yedekler
 /storage/backups/*
 !/storage/backups/.gitkeep
+
+# .env.local
+.env.local
+.docs/

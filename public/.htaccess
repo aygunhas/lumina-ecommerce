@@ -1,0 +1,14 @@
+# Lumina Boutique - Tüm istekleri index.php'ye yönlendir
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteBase /
+
+    # /admin ve /admin/* mutlaka index.php'ye gitsin (public/admin klasörü var, yoksa 404 olur)
+    RewriteRule ^admin(/.*)?$ index.php [L,QSA]
+
+    # Mevcut dosya veya klasör varsa doğrudan sun (resim, css, js)
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+
+    RewriteRule ^ index.php [L,QSA]
+</IfModule>
