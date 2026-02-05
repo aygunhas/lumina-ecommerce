@@ -89,14 +89,19 @@ $menuItems = [
                         <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998-0.059A7.5 7.5 0 0 1 4.5 20.118Z" />
                     </svg>
                 </a>
-                <a href="<?= $baseUrl ?>/sepet" class="relative text-primary hover:opacity-70 transition" aria-label="Sepet">
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 10.5V6a3.75 3.75 0 1 0-7.5 0v4.5m11.356-1.993 1.263 12c.07.665-.45 1.243-1.119 1.243H4.25a1.125 1.125 0 0 1-1.12-1.243l1.264-12c.07-.404.323-.747.745-.933H3.75a.75.75 0 0 0-.75.75v.75c0 .414.336.75.75.75h14.5a.75.75 0 0 0 .75-.75V3a.75.75 0 0 0-.75-.75h-.745a1.125 1.125 0 0 1-.745.933Z" />
-                    </svg>
-                    <?php if ($cartCount > 0): ?>
-                        <span class="absolute -top-1 -right-2 bg-black text-white text-[9px] w-4 h-4 flex items-center justify-center rounded-full font-medium"><?= $cartCount > 99 ? '99+' : $cartCount ?></span>
-                    <?php endif; ?>
-                </a>
+                <div x-data="{ cartCount: <?= (int) ($cartCount ?? 0) ?>, badgePulse: false }" @cart-updated.window="cartCount++; badgePulse = true; setTimeout(() => badgePulse = false, 400)" @cart-count-updated.window="cartCount = $event.detail.count; badgePulse = true; setTimeout(() => badgePulse = false, 400)">
+                    <a href="<?= $baseUrl ?>/sepet" @click.prevent="$dispatch('cart-open')" class="relative text-primary hover:opacity-70 transition block cursor-pointer" aria-label="Sepet (çekmeceyi aç)">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 10.5V6a3.75 3.75 0 1 0-7.5 0v4.5m11.356-1.993 1.263 12c.07.665-.45 1.243-1.119 1.243H4.25a1.125 1.125 0 0 1-1.12-1.243l1.264-12c.07-.404.323-.747.745-.933H3.75a.75.75 0 0 0-.75.75v.75c0 .414.336.75.75.75h14.5a.75.75 0 0 0 .75-.75V3a.75.75 0 0 0-.75-.75h-.745a1.125 1.125 0 0 1-.745.933Z" />
+                        </svg>
+                        <span x-show="cartCount > 0"
+                              x-cloak
+                              class="absolute -top-1 -right-2 bg-black text-white text-[9px] min-w-4 h-4 px-1 flex items-center justify-center rounded-full font-medium transition-transform duration-150 origin-center"
+                              :class="{ 'scale-125': badgePulse }">
+                            <span x-text="cartCount > 99 ? '99+' : cartCount"></span>
+                        </span>
+                    </a>
+                </div>
             </div>
         </div>
     </div>

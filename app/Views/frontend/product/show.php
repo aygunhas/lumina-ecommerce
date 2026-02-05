@@ -63,7 +63,9 @@ $galleryJson = json_encode($productImageUrls);
         <div x-data="{
             selectedColor: 'Siyah',
             selectedSize: null,
-            sizeStock: { XS: true, S: true, M: true, L: true, XL: false }
+            sizeStock: { XS: true, S: true, M: true, L: true, XL: false },
+            buttonLabel: 'Sepete Ekle',
+            addedFeedback: false
         }">
             <!-- Etiketler -->
             <div class="flex flex-wrap gap-2 mb-4">
@@ -156,29 +158,50 @@ $galleryJson = json_encode($productImageUrls);
                 <input type="hidden" name="redirect" value="<?= htmlspecialchars($baseUrl) ?>/sepet">
                 <input type="hidden" name="quantity" value="1">
             </form>
-            <button type="submit" form="<?= $hasVariants ? 'add-cart-variant-form' : 'add-cart-simple-form' ?>"
+            <button type="button"
                 id="add-cart-btn"
-                <?php if (!$hasVariants): ?>x-bind:disabled="!selectedSize"
-                <?php endif; ?>
+                data-has-variants="<?= $hasVariants ? '1' : '0' ?>"
+                @click.prevent="
+                    var hasVariants = document.getElementById('add-cart-btn').getAttribute('data-has-variants') === '1';
+                    var form = document.getElementById(hasVariants ? 'add-cart-variant-form' : 'add-cart-simple-form');
+                    if (hasVariants) {
+                        if (!document.getElementById('product_variant_id').value) {
+                            $dispatch('notify', { message: 'Lütfen varyant seçin.' });
+                            return;
+                        }
+                    } else {
+                        if (!selectedSize) {
+                            $dispatch('notify', { message: 'Lütfen beden seçin.' });
+                            return;
+                        }
+                    }
+                    fetch(form.action, { method: 'POST', body: new FormData(form), headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+                        .then(function(r){ return r.json(); })
+                        .then(function(data){
+                            if (data.success) {
+                                $dispatch('cart-updated');
+                                $dispatch('cart-open');
+                                $dispatch('notify', { message: 'Ürün sepete eklendi.' });
+                            } else {
+                                $dispatch('notify', { message: data.message || 'Hata oluştu.' });
+                            }
+                        })
+                        .catch(function(){ $dispatch('notify', { message: 'Bir hata oluştu.' }); });
+                "
                 class="w-full bg-black text-white py-4 mt-8 uppercase tracking-widest text-xs font-bold hover:bg-gray-800 transition disabled:opacity-50 disabled:cursor-not-allowed">
                 Sepete Ekle
             </button>
-            <?php if (!$hasVariants): ?>
-                <p x-show="!selectedSize" x-transition class="text-[10px] text-amber-600 mt-2">Lütfen beden seçin.</p>
-            <?php endif; ?>
             <?php if ($hasVariants): ?>
                 <p id="variant-please-select" class="text-[10px] text-gray-500 mt-2">Lütfen varyant seçin.</p>
                 <script>
                 (function(){
                     var variants = <?= json_encode(array_map(function($v){ return ['id' => (int)$v['id'], 'attribute_value_ids' => array_map('intval', $v['attribute_value_ids'] ?? []), 'stock' => (int)$v['stock']]; }, $productVariants)) ?>;
                     var selects = document.querySelectorAll('.variant-attr-select');
-                    var form = document.getElementById('add-cart-variant-form');
                     var variantInput = document.getElementById('product_variant_id');
-                    var btn = document.getElementById('add-cart-btn');
                     var please = document.getElementById('variant-please-select');
                     function getSelectedIds(){ var ids = []; selects.forEach(function(s){ var v = s.value; if(v) ids.push(parseInt(v,10)); }); return ids.sort(function(a,b){ return a-b; }); }
                     function findVariant(){ var sel = getSelectedIds(); if(sel.length !== selects.length) return null; for(var i=0;i<variants.length;i++){ var vids = (variants[i].attribute_value_ids||[]).slice().sort(function(a,b){ return a-b; }); if(vids.length === sel.length && vids.every(function(v,j){ return v===sel[j]; })) return variants[i]; } return null; }
-                    function update(){ var v = findVariant(); if(please) please.style.display = v ? 'none' : 'block'; if(btn) btn.disabled = !v; if(v) variantInput.value = v.id; }
+                    function update(){ var v = findVariant(); if(please) please.style.display = v ? 'none' : 'block'; if(v) variantInput.value = v.id; else variantInput.value = ''; }
                     selects.forEach(function(s){ s.addEventListener('change', update); });
                     update();
                 })();

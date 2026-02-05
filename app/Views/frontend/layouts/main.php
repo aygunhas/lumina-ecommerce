@@ -40,6 +40,7 @@ $baseUrl = $baseUrl ?? '';
             },
         }
     </script>
+    <style>[x-cloak] { display: none !important; }</style>
     <!-- Alpine.js + Intersect (lazy-load / scroll tetikleyici) -->
     <script defer src="https://cdn.jsdelivr.net/npm/@alpinejs/intersect@3.x.x/dist/cdn.min.js"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
@@ -50,5 +51,7 @@ $baseUrl = $baseUrl ?? '';
         <?= $content ?? '' ?>
     </main>
     <?php require (defined('BASE_PATH') ? BASE_PATH : dirname(__DIR__, 3)) . '/includes/footer.php'; ?>
+    <?php require (defined('BASE_PATH') ? BASE_PATH : dirname(__DIR__, 3)) . '/includes/cart-drawer.php'; ?>
+    <?php require (defined('BASE_PATH') ? BASE_PATH : dirname(__DIR__, 3)) . '/includes/toast.php'; ?>
 </body>
 </html>

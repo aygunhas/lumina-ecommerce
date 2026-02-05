@@ -41,10 +41,10 @@ class CartController
         return 'p' . $productId;
     }
 
-    public function index(): void
+    /** Sepet öğeleri ve ara toplam (çekmece / layout için). */
+    public static function getCartItems(): array
     {
         $cart = $_SESSION['cart'] ?? [];
-        // Eski sayısal anahtarları (123) yeni formata (p123) taşı
         $normalized = [];
         foreach ($cart as $key => $qty) {
             $parsed = self::parseCartKey(is_int($key) ? (string) $key : (string) $key);
@@ -101,9 +101,19 @@ class CartController
                 $row['product_sku'] = $row['sku'] ?? '';
                 unset($row['sku'], $row['sale_price']);
                 $subtotal += $row['total'];
+                $pid = (int) $row['id'];
+                $stmtImg = $pdo->prepare('SELECT path FROM product_images WHERE product_id = ? ORDER BY sort_order ASC, id ASC LIMIT 1');
+                $stmtImg->execute([$pid]);
+                $row['image_path'] = $stmtImg->fetchColumn() ?: null;
                 $items[] = $row;
             }
         }
+        return [$items, $subtotal];
+    }
+
+    public function index(): void
+    {
+        [$items, $subtotal] = self::getCartItems();
         $title = 'Sepetim - ' . env('APP_NAME', 'Lumina Boutique');
         $baseUrl = $this->baseUrl();
         $this->render('frontend/cart/index', compact('title', 'baseUrl', 'items', 'subtotal'));
@@ -112,14 +122,19 @@ class CartController
     public function add(): void
     {
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-            header('Location: ' . $this->baseUrl() . '/');
-            exit;
+            $this->ajaxResponse(['success' => false, 'message' => 'Geçersiz istek.']);
+            return;
         }
+        $isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
         $productId = (int) ($_POST['product_id'] ?? 0);
         $variantId = isset($_POST['product_variant_id']) && $_POST['product_variant_id'] !== '' ? (int) $_POST['product_variant_id'] : null;
         $quantity = (int) ($_POST['quantity'] ?? 1);
         if ($productId < 1 || $quantity < 1) {
             $_SESSION['cart_error'] = 'Geçersiz istek.';
+            if ($isAjax) {
+                $this->ajaxResponse(['success' => false, 'message' => 'Geçersiz istek.']);
+                return;
+            }
             header('Location: ' . ($_POST['redirect'] ?? $this->baseUrl() . '/'));
             exit;
         }
@@ -131,6 +146,10 @@ class CartController
             $v = $stmt->fetch(PDO::FETCH_ASSOC);
             if (!$v) {
                 $_SESSION['cart_error'] = 'Varyant bulunamadı.';
+                if ($isAjax) {
+                    $this->ajaxResponse(['success' => false, 'message' => 'Varyant bulunamadı.']);
+                    return;
+                }
                 header('Location: ' . ($_POST['redirect'] ?? $this->baseUrl() . '/'));
                 exit;
             }
@@ -141,6 +160,10 @@ class CartController
             $product = $stmt->fetch(PDO::FETCH_ASSOC);
             if (!$product) {
                 $_SESSION['cart_error'] = 'Ürün bulunamadı.';
+                if ($isAjax) {
+                    $this->ajaxResponse(['success' => false, 'message' => 'Ürün bulunamadı.']);
+                    return;
+                }
                 header('Location: ' . ($_POST['redirect'] ?? $this->baseUrl() . '/'));
                 exit;
             }
@@ -155,6 +178,10 @@ class CartController
         $size = isset($_POST['size']) ? trim((string) $_POST['size']) : null;
         if ($variantId === null && ($size === null || $size === '')) {
             $_SESSION['cart_error'] = 'Lütfen beden seçin.';
+            if ($isAjax) {
+                $this->ajaxResponse(['success' => false, 'message' => 'Lütfen beden seçin.']);
+                return;
+            }
             header('Location: ' . ($_POST['redirect'] ?? $this->baseUrl() . '/'));
             exit;
         }
@@ -163,8 +190,19 @@ class CartController
         if ($maxQty > 0 && $_SESSION['cart'][$key] > $maxQty) {
             $_SESSION['cart'][$key] = $maxQty;
         }
+        if ($isAjax) {
+            $this->ajaxResponse(['success' => true]);
+            return;
+        }
         $redirect = $_POST['redirect'] ?? $this->baseUrl() . '/sepet';
         header('Location: ' . $redirect);
+        exit;
+    }
+
+    private function ajaxResponse(array $data): void
+    {
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode($data, JSON_UNESCAPED_UNICODE);
         exit;
     }
 
@@ -174,9 +212,14 @@ class CartController
             header('Location: ' . $this->baseUrl() . '/sepet');
             exit;
         }
+        $isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
         $cartKey = trim($_POST['cart_key'] ?? '');
         $quantity = (int) ($_POST['quantity'] ?? 0);
         if ($cartKey === '') {
+            if ($isAjax) {
+                $this->ajaxResponse(['success' => false, 'message' => 'Geçersiz istek.']);
+                return;
+            }
             header('Location: ' . $this->baseUrl() . '/sepet');
             exit;
         }
@@ -200,6 +243,27 @@ class CartController
                 $stock = (int) ($stmt->fetchColumn() ?: 0);
             }
             $_SESSION['cart'][$cartKey] = $stock > 0 ? min($quantity, $stock) : $quantity;
+        }
+        if ($isAjax) {
+            [$items, $subtotal] = self::getCartItems();
+            $cartCount = array_sum(array_column($items, 'quantity'));
+            $updatedItem = null;
+            foreach ($items as $item) {
+                if (($item['cart_key'] ?? '') === $cartKey) {
+                    $updatedItem = $item;
+                    break;
+                }
+            }
+            $removed = $quantity < 1;
+            $this->ajaxResponse([
+                'success' => true,
+                'quantity' => $removed ? 0 : (int) ($updatedItem['quantity'] ?? 0),
+                'line_total' => $removed ? 0.0 : (float) ($updatedItem['total'] ?? 0),
+                'subtotal' => (float) $subtotal,
+                'cart_count' => (int) $cartCount,
+                'removed' => $removed,
+            ]);
+            return;
         }
         header('Location: ' . $this->baseUrl() . '/sepet');
         exit;

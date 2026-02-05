@@ -51,5 +51,7 @@
         <?php echo $content ?? ''; ?>
     </main>
     <?php include __DIR__ . '/footer.php'; ?>
+    <?php include __DIR__ . '/cart-drawer.php'; ?>
+    <?php include __DIR__ . '/toast.php'; ?>
 </body>
 </html>
