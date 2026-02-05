@@ -1,6 +1,38 @@
 <?php
 $baseUrl = $baseUrl ?? '';
 $cartCount = !empty($_SESSION['cart']) ? array_sum($_SESSION['cart']) : 0;
+
+$menuItems = [
+    ['label' => 'YENİLER', 'link' => 'new-arrivals.php', 'color' => 'text-primary'],
+    [
+        'label' => 'KADIN', 'link' => 'women.php',
+        'submenu' => [
+            ['label' => 'Giyim', 'link' => 'women-clothing.php'],
+            ['label' => 'Ayakkabı', 'link' => 'women-shoes.php'],
+            ['label' => 'Çanta', 'link' => 'women-bags.php'],
+            ['label' => 'Aksesuar', 'link' => 'women-accessories.php']
+        ]
+    ],
+    [
+        'label' => 'ERKEK', 'link' => 'men.php',
+        'submenu' => [
+            ['label' => 'Giyim', 'link' => 'men-clothing.php'],
+            ['label' => 'Ayakkabı', 'link' => 'men-shoes.php'],
+            ['label' => 'Saat', 'link' => 'men-watches.php']
+        ]
+    ],
+    [
+        'label' => 'AKSESUAR', 'link' => 'accessories.php',
+        'submenu' => [
+            ['label' => 'Çanta', 'link' => 'accessories-bags.php'],
+            ['label' => 'Saat', 'link' => 'accessories-watches.php'],
+            ['label' => 'Takı', 'link' => 'accessories-jewelry.php'],
+            ['label' => 'Fular & Şal', 'link' => 'accessories-scarves.php'],
+            ['label' => 'Kemer', 'link' => 'accessories-belts.php']
+        ]
+    ],
+    ['label' => 'SALE', 'link' => 'sale.php', 'icon' => 'tag', 'color' => 'text-[#991b1b]']
+];
 ?>
 <div x-data="{ mobileMenuOpen: false, searchOpen: false }">
 <div class="fixed w-full top-0 z-50 bg-white/95 backdrop-blur-sm border-b border-black/5 transition-all duration-300">
@@ -9,14 +41,29 @@ $cartCount = !empty($_SESSION['cart']) ? array_sum($_SESSION['cart']) : 0;
             <!-- SOL: Navigasyon (desktop) + Hamburger (mobil) -->
             <div class="flex items-center">
                 <nav class="hidden md:flex gap-8">
-                    <a href="<?= $baseUrl ?>/new-arrivals.php" class="text-[11px] font-medium tracking-luxury uppercase text-primary hover:text-primary transition">YENİLER</a>
-                    <a href="<?= $baseUrl ?>/women.php" class="text-[11px] font-medium tracking-luxury uppercase text-secondary hover:text-primary transition">KADIN</a>
-                    <a href="<?= $baseUrl ?>/men.php" class="text-[11px] font-medium tracking-luxury uppercase text-secondary hover:text-primary transition">ERKEK</a>
-                    <a href="<?= $baseUrl ?>/accessories.php" class="text-[11px] font-medium tracking-luxury uppercase text-secondary hover:text-primary transition">AKSESUAR</a>
-                    <a href="<?= $baseUrl ?>/sale.php" class="text-[11px] font-medium tracking-luxury uppercase text-[#991b1b] hover:text-primary transition flex items-center gap-1">
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-3 h-3"><path stroke-linecap="round" stroke-linejoin="round" d="M9.568 3H5.25A2.25 2.25 0 003 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 005.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 009.568 3z" /><path stroke-linecap="round" stroke-linejoin="round" d="M6 6h.008v.008H6V6z" /></svg>
-                        İndirim
-                    </a>
+                    <?php foreach ($menuItems as $item): ?>
+                        <?php $hasSub = !empty($item['submenu']); ?>
+                        <?php $linkClass = 'text-[11px] font-medium tracking-luxury uppercase transition ' . ($item['color'] ?? 'text-secondary hover:text-primary'); ?>
+                        <?php if ($hasSub): ?>
+                            <div class="relative" x-data="{ open: false }" @mouseenter="open = true" @mouseleave="open = false">
+                                <a href="<?= $baseUrl ?>/<?= htmlspecialchars($item['link']) ?>" class="<?= $linkClass ?> flex items-center gap-1">
+                                    <?= htmlspecialchars($item['label']) ?>
+                                </a>
+                                <div x-show="open" x-cloak x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0 -translate-y-1" x-transition:enter-end="opacity-100 translate-y-0" x-transition:leave="transition ease-in duration-150" x-transition:leave-start="opacity-100 translate-y-0" x-transition:leave-end="opacity-0 -translate-y-1" class="hidden absolute top-full left-0 w-48 bg-white border border-gray-100 shadow-lg py-4 z-50" @click.outside="open = false">
+                                    <?php foreach ($item['submenu'] as $sub): ?>
+                                        <a href="<?= $baseUrl ?>/<?= htmlspecialchars($sub['link']) ?>" class="block px-6 py-2 text-[10px] text-gray-500 hover:text-black tracking-widest uppercase transition"><?= htmlspecialchars($sub['label']) ?></a>
+                                    <?php endforeach; ?>
+                                </div>
+                            </div>
+                        <?php else: ?>
+                            <a href="<?= $baseUrl ?>/<?= htmlspecialchars($item['link']) ?>" class="<?= $linkClass ?> flex items-center gap-1">
+                                <?php if (!empty($item['icon']) && $item['icon'] === 'tag'): ?>
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-3 h-3"><path stroke-linecap="round" stroke-linejoin="round" d="M9.568 3H5.25A2.25 2.25 0 003 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 005.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 009.568 3z" /><path stroke-linecap="round" stroke-linejoin="round" d="M6 6h.008v.008H6V6z" /></svg>
+                                <?php endif; ?>
+                                <?= htmlspecialchars($item['label']) ?>
+                            </a>
+                        <?php endif; ?>
+                    <?php endforeach; ?>
                 </nav>
                 <button type="button" @click="mobileMenuOpen = true" class="md:hidden p-2 text-primary" aria-label="Menüyü aç">
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
@@ -25,7 +72,7 @@ $cartCount = !empty($_SESSION['cart']) ? array_sum($_SESSION['cart']) : 0;
                 </button>
             </div>
 
-            <!-- ORTA: Logo (footer ile aynı – metin LUMINA) -->
+            <!-- ORTA: Logo -->
             <div class="flex justify-center">
                 <a href="<?= $baseUrl ?>/" class="text-2xl md:text-3xl font-display font-bold tracking-tighter text-primary block">LUMINA</a>
             </div>
@@ -54,8 +101,8 @@ $cartCount = !empty($_SESSION['cart']) ? array_sum($_SESSION['cart']) : 0;
         </div>
     </div>
 
-    <!-- Arama barı (searchOpen ile) -->
-    <div x-show="searchOpen" x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0 -translate-y-2" x-transition:enter-end="opacity-100 translate-y-0" x-transition:leave="transition ease-in duration-150" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0" class="absolute left-0 right-0 top-full bg-white border-b border-black/5 shadow-sm" @click.outside="searchOpen = false">
+    <!-- Arama barı -->
+    <div x-show="searchOpen" x-cloak x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0 -translate-y-2" x-transition:enter-end="opacity-100 translate-y-0" x-transition:leave="transition ease-in duration-150" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0" class="hidden absolute left-0 right-0 top-full bg-white border-b border-black/5 shadow-sm" @click.outside="searchOpen = false">
         <form action="<?= $baseUrl ?>/arama" method="get" class="max-w-[1400px] mx-auto px-6 py-4 flex gap-3">
             <input type="search" name="q" placeholder="Ürün ara..." class="flex-1 border-b border-black/10 py-2 text-primary placeholder:text-secondary focus:outline-none focus:border-primary text-sm" autofocus>
             <button type="submit" class="text-[11px] font-medium tracking-luxury uppercase text-primary hover:text-gray-500 transition">Ara</button>
@@ -68,8 +115,8 @@ $cartCount = !empty($_SESSION['cart']) ? array_sum($_SESSION['cart']) : 0;
     </div>
 </div>
 
-<!-- Mobil menü (slide-over, soldan sağa kayarak) - aynı x-data içinde -->
-<div x-show="mobileMenuOpen" x-cloak x-transition:enter="transition ease-out duration-300" x-transition:enter-start="opacity-0 translate-x-[-100%]" x-transition:enter-end="opacity-100 translate-x-0" x-transition:leave="transition ease-in duration-200" x-transition:leave-start="opacity-100 translate-x-0" x-transition:leave-end="opacity-0 translate-x-[-100%]" class="fixed inset-0 z-[60] bg-white" style="display: none;">
+<!-- Mobil menü (slide-over) -->
+<div x-show="mobileMenuOpen" x-cloak x-transition:enter="transition ease-out duration-300" x-transition:enter-start="opacity-0 translate-x-[-100%]" x-transition:enter-end="opacity-100 translate-x-0" x-transition:leave="transition ease-in duration-200" x-transition:leave-start="opacity-100 translate-x-0" x-transition:leave-end="opacity-0 translate-x-[-100%]" class="hidden fixed inset-0 z-[60] bg-white">
     <div class="flex flex-col h-full pt-8 pb-12 px-8">
         <div class="flex items-center justify-between">
             <a href="<?= $baseUrl ?>/" class="text-3xl font-display font-bold tracking-tighter text-primary" @click="mobileMenuOpen = false">LUMINA</a>
@@ -80,22 +127,37 @@ $cartCount = !empty($_SESSION['cart']) ? array_sum($_SESSION['cart']) : 0;
             </button>
         </div>
         <nav class="flex-1 flex flex-col justify-center gap-8">
-            <a href="<?= $baseUrl ?>/new-arrivals.php" class="text-3xl font-display font-medium text-primary tracking-tight" @click="mobileMenuOpen = false">YENİLER</a>
-            <a href="<?= $baseUrl ?>/women.php" class="text-3xl font-display font-medium text-secondary hover:text-primary tracking-tight transition" @click="mobileMenuOpen = false">KADIN</a>
-            <a href="<?= $baseUrl ?>/men.php" class="text-3xl font-display font-medium text-secondary hover:text-primary tracking-tight transition" @click="mobileMenuOpen = false">ERKEK</a>
-            <a href="<?= $baseUrl ?>/accessories.php" class="text-3xl font-display font-medium text-secondary hover:text-primary tracking-tight transition" @click="mobileMenuOpen = false">AKSESUAR</a>
-            <a href="<?= $baseUrl ?>/sale.php" class="text-3xl font-display font-medium text-[#991b1b] hover:text-primary tracking-tight transition flex items-center gap-2" @click="mobileMenuOpen = false">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5"><path stroke-linecap="round" stroke-linejoin="round" d="M9.568 3H5.25A2.25 2.25 0 003 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 005.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 009.568 3z" /><path stroke-linecap="round" stroke-linejoin="round" d="M6 6h.008v.008H6V6z" /></svg>
-                İndirim
-            </a>
+            <?php foreach ($menuItems as $item): ?>
+                <?php $hasSub = !empty($item['submenu']); ?>
+                <?php $mobileLinkClass = 'text-3xl font-display font-medium tracking-tight transition ' . ($item['color'] ?? 'text-secondary hover:text-primary'); ?>
+                <?php if ($hasSub): ?>
+                    <div x-data="{ expanded: false }">
+                        <div class="flex items-center justify-between gap-4">
+                            <a href="<?= $baseUrl ?>/<?= htmlspecialchars($item['link']) ?>" class="<?= $mobileLinkClass ?>" @click="mobileMenuOpen = false"><?= htmlspecialchars($item['label']) ?></a>
+                            <button type="button" @click="expanded = !expanded" class="p-2 text-primary hover:opacity-70 flex-shrink-0" aria-label="Alt menüyü aç veya kapat">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5 transition-transform duration-200" :class="{ 'rotate-180': expanded }">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
+                                </svg>
+                            </button>
+                        </div>
+                        <div x-show="expanded" x-cloak x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0 -translate-y-1" x-transition:enter-end="opacity-100 translate-y-0" x-transition:leave="transition ease-in duration-150" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0" class="flex flex-col gap-3 mt-3">
+                            <?php foreach ($item['submenu'] as $sub): ?>
+                                <a href="<?= $baseUrl ?>/<?= htmlspecialchars($sub['link']) ?>" class="text-lg text-gray-500 hover:text-primary pl-6 tracking-tight transition" @click="mobileMenuOpen = false"><?= htmlspecialchars($sub['label']) ?></a>
+                            <?php endforeach; ?>
+                        </div>
+                    </div>
+                <?php else: ?>
+                    <a href="<?= $baseUrl ?>/<?= htmlspecialchars($item['link']) ?>" class="<?= $mobileLinkClass ?> flex items-center gap-2" @click="mobileMenuOpen = false">
+                        <?php if (!empty($item['icon']) && $item['icon'] === 'tag'): ?>
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-5 h-5"><path stroke-linecap="round" stroke-linejoin="round" d="M9.568 3H5.25A2.25 2.25 0 003 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 005.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 009.568 3z" /><path stroke-linecap="round" stroke-linejoin="round" d="M6 6h.008v.008H6V6z" /></svg>
+                        <?php endif; ?>
+                        <?= htmlspecialchars($item['label']) ?>
+                    </a>
+                <?php endif; ?>
+            <?php endforeach; ?>
         </nav>
     </div>
 </div>
 
-<style>
-    [x-cloak] { display: none !important; }
-</style>
-
-<!-- Header yüksekliği kadar boşluk (fixed olduğu için içerik üstte kalmasın) -->
 <div class="h-20" aria-hidden="true"></div>
 </div>

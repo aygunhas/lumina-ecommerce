@@ -17,20 +17,26 @@ class CartController
         if (strpos($key, '_v') !== false) {
             $parts = explode('_v', $key, 2);
             if (count($parts) === 2 && $parts[0] !== '' && preg_match('/^p\d+$/', $parts[0]) && is_numeric($parts[1])) {
-                return ['product_id' => (int) ltrim($parts[0], 'p'), 'variant_id' => (int) $parts[1]];
+                return ['product_id' => (int) ltrim($parts[0], 'p'), 'variant_id' => (int) $parts[1], 'size' => null];
             }
+        }
+        if (preg_match('/^p(\d+)_s_(.+)$/', $key, $m)) {
+            return ['product_id' => (int) $m[1], 'variant_id' => null, 'size' => $m[2]];
         }
         if (preg_match('/^p?\d+$/', $key)) {
             $id = (int) ltrim($key, 'p');
-            return ['product_id' => $id, 'variant_id' => null];
+            return ['product_id' => $id, 'variant_id' => null, 'size' => null];
         }
-        return ['product_id' => 0, 'variant_id' => null];
+        return ['product_id' => 0, 'variant_id' => null, 'size' => null];
     }
 
-    private static function cartKey(int $productId, ?int $variantId): string
+    private static function cartKey(int $productId, ?int $variantId, ?string $size = null): string
     {
         if ($variantId !== null && $variantId > 0) {
             return 'p' . $productId . '_v' . $variantId;
+        }
+        if ($size !== null && $size !== '') {
+            return 'p' . $productId . '_s_' . $size;
         }
         return 'p' . $productId;
     }
@@ -43,7 +49,7 @@ class CartController
         foreach ($cart as $key => $qty) {
             $parsed = self::parseCartKey(is_int($key) ? (string) $key : (string) $key);
             if ($parsed['product_id'] < 1) continue;
-            $k = self::cartKey($parsed['product_id'], $parsed['variant_id']);
+            $k = self::cartKey($parsed['product_id'], $parsed['variant_id'], $parsed['size'] ?? null);
             $normalized[$k] = ((int) ($normalized[$k] ?? 0)) + (int) $qty;
         }
         $_SESSION['cart'] = $normalized;
@@ -84,14 +90,14 @@ class CartController
                     $row = $stmt->fetch(PDO::FETCH_ASSOC);
                     if (!$row) continue;
                     $row['variant_id'] = null;
-                    $row['attributes_summary'] = null;
+                    $row['attributes_summary'] = !empty($parsed['size']) ? 'Beden: ' . $parsed['size'] : null;
                 }
                 $price = $row['sale_price'] !== null && (float) $row['sale_price'] > 0 ? (float) $row['sale_price'] : (float) $row['price'];
                 $stock = (int) ($row['stock'] ?? 0);
                 $row['quantity'] = $stock > 0 ? min($qty, $stock) : $qty;
                 $row['price'] = $price;
                 $row['total'] = $row['price'] * $row['quantity'];
-                $row['cart_key'] = self::cartKey($productId, $variantId ?? null);
+                $row['cart_key'] = self::cartKey($productId, $variantId ?? null, $parsed['size'] ?? null);
                 $row['product_sku'] = $row['sku'] ?? '';
                 unset($row['sku'], $row['sale_price']);
                 $subtotal += $row['total'];
@@ -146,7 +152,13 @@ class CartController
         if (!isset($_SESSION['cart'])) {
             $_SESSION['cart'] = [];
         }
-        $key = self::cartKey($productId, $variantId);
+        $size = isset($_POST['size']) ? trim((string) $_POST['size']) : null;
+        if ($variantId === null && ($size === null || $size === '')) {
+            $_SESSION['cart_error'] = 'Lütfen beden seçin.';
+            header('Location: ' . ($_POST['redirect'] ?? $this->baseUrl() . '/'));
+            exit;
+        }
+        $key = self::cartKey($productId, $variantId, $variantId === null ? $size : null);
         $_SESSION['cart'][$key] = ((int) ($_SESSION['cart'][$key] ?? 0)) + $quantity;
         if ($maxQty > 0 && $_SESSION['cart'][$key] > $maxQty) {
             $_SESSION['cart'][$key] = $maxQty;

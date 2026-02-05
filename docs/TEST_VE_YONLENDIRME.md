@@ -113,9 +113,17 @@ Bu dosya, projede **şu an ne olduğunu**, **nasıl test edeceğinizi** ve **sı
 
 ---
 
+### 7b. Ürün detay: beden seçimi ve sepete ekleme (test listesi)
+
+1. **Varyantı olmayan ürün (basit ürün):** Ürün detayda beden seçmeden **Sepete Ekle** butonu devre dışı (soluk) olmalı; "Lütfen beden seçin." uyarısı görünür. Bir beden seçin (örn. M) → buton aktif olur. Sepete ekleyin → sepette **Beden: M** görünür. Aynı ürünü farklı bedenle (L) ekleyin → sepette iki ayrı satır olmalı. Sunucu tarafında beden gönderilmeden istek "Lütfen beden seçin." hatası ile reddedilir.
+2. **Varyantlı ürün:** Sayfada dropdown'lar (— Seçin —) görünür; hepsi seçilmeden buton devre dışı, "Lütfen varyant seçin." yazar. Varyantları seçip sepete ekleyin → sepette varyant bilgisiyle listelenir.
+3. **Stok dışı beden:** Stokta olmayan beden (örn. XL) gri ve tıklanamaz görünür.
+
+---
+
 ### 8. Sepet ve ödemeyi test etmek
 
-1. **Sepete ekle:** Bir ürün detay sayfasında adet seçip **Sepete ekle** deyin → sepete yönlendirilirsiniz. Header’da **Sepet (1)** veya **Sepet (2)** gibi adet görünür.
+1. **Sepete ekle:** Ürün detayda **beden seçip** (veya varyantlı ürünse varyant seçip) **Sepete ekle** deyin → sepete yönlendirilirsiniz. Header’da **Sepet (1)** veya **Sepet (2)** gibi adet görünür.
 2. **Sepet sayfası:** `/sepet` — Ürün listesi, fiyat, adet (güncelle butonu), toplam, **Kaldır** linki. Adeti değiştirip **Güncelle** veya **Kaldır** ile ürünü çıkarın. **Ödemeye geç** ile ödeme sayfasına gider.
 3. **Ödeme formu:** `/odeme` — E-posta, ad, soyad, telefon, il, ilçe, adres (zorunlu); posta kodu, sipariş notu (isteğe bağlı). Ödeme yöntemi: **Kapıda ödeme**, **Havale/EFT**, **Kredi kartı (Stripe — yakında)**. **Siparişi tamamla** deyin.
 4. **Sipariş sonrası:** Eksik alan varsa hata mesajları görünür; form doldurulmuş alanlarla tekrar açılır. Tümü dolu ve geçerliyse sipariş oluşturulur, sepet boşalır, **Siparişiniz alındı** sayfasına yönlendirilirsiniz; sipariş numarası (örn. LB-20250204-1234) gösterilir.

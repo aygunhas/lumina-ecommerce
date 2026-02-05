@@ -34,10 +34,9 @@ class ProductController
             exit;
         }
         $pdo->prepare('UPDATE products SET view_count = view_count + 1 WHERE id = ?')->execute([$product['id']]);
-        $stmt = $pdo->prepare('SELECT path FROM product_images WHERE product_id = ? ORDER BY sort_order ASC, id ASC LIMIT 1');
+        $stmt = $pdo->prepare('SELECT path FROM product_images WHERE product_id = ? ORDER BY sort_order ASC, id ASC');
         $stmt->execute([$product['id']]);
-        $firstImage = $stmt->fetch(PDO::FETCH_ASSOC);
-        $productImagePath = $firstImage ? $firstImage['path'] : null;
+        $productImagePaths = $stmt->fetchAll(PDO::FETCH_COLUMN);
 
         // Benzer ürünler (A17): aynı kategoriden, mevcut ürün hariç, en fazla 4
         $relatedProducts = [];
@@ -125,7 +124,7 @@ class ProductController
 
         $title = $product['name'] . ' - ' . env('APP_NAME', 'Lumina Boutique');
         $baseUrl = $this->baseUrl();
-        $this->render('frontend/product/show', compact('title', 'baseUrl', 'product', 'productImagePath', 'relatedProducts', 'relatedProductImages', 'isInWishlist', 'userId', 'productVariants', 'attributesForVariant', 'attributeValuesByAttr'));
+        $this->render('frontend/product/show', compact('title', 'baseUrl', 'product', 'productImagePaths', 'relatedProducts', 'relatedProductImages', 'isInWishlist', 'userId', 'productVariants', 'attributesForVariant', 'attributeValuesByAttr'));
     }
 
     private function baseUrl(): string
