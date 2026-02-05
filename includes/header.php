@@ -2,37 +2,39 @@
 $baseUrl = $baseUrl ?? '';
 $cartCount = !empty($_SESSION['cart']) ? array_sum($_SESSION['cart']) : 0;
 
-$menuItems = [
-    ['label' => 'YENİLER', 'link' => 'new-arrivals.php', 'color' => 'text-primary'],
-    [
-        'label' => 'KADIN', 'link' => 'women.php',
-        'submenu' => [
-            ['label' => 'Giyim', 'link' => 'women-clothing.php'],
-            ['label' => 'Ayakkabı', 'link' => 'women-shoes.php'],
-            ['label' => 'Çanta', 'link' => 'women-bags.php'],
-            ['label' => 'Aksesuar', 'link' => 'women-accessories.php']
-        ]
-    ],
-    [
-        'label' => 'ERKEK', 'link' => 'men.php',
-        'submenu' => [
-            ['label' => 'Giyim', 'link' => 'men-clothing.php'],
-            ['label' => 'Ayakkabı', 'link' => 'men-shoes.php'],
-            ['label' => 'Saat', 'link' => 'men-watches.php']
-        ]
-    ],
-    [
-        'label' => 'AKSESUAR', 'link' => 'accessories.php',
-        'submenu' => [
-            ['label' => 'Çanta', 'link' => 'accessories-bags.php'],
-            ['label' => 'Saat', 'link' => 'accessories-watches.php'],
-            ['label' => 'Takı', 'link' => 'accessories-jewelry.php'],
-            ['label' => 'Fular & Şal', 'link' => 'accessories-scarves.php'],
-            ['label' => 'Kemer', 'link' => 'accessories-belts.php']
-        ]
-    ],
-    ['label' => 'SALE', 'link' => 'sale.php', 'icon' => 'tag', 'color' => 'text-[#991b1b]']
-];
+$menuItems = [];
+if (class_exists(\App\Config\Database::class)) {
+    try {
+        $pdo = \App\Config\Database::getConnection();
+        $topCategories = $pdo->query("SELECT id, name, slug FROM categories WHERE (parent_id IS NULL OR parent_id = 0) AND is_active = 1 ORDER BY sort_order ASC, name ASC")->fetchAll(PDO::FETCH_ASSOC);
+        $allCategories = $pdo->query("SELECT id, name, slug, parent_id FROM categories WHERE is_active = 1 ORDER BY parent_id ASC, sort_order ASC, name ASC")->fetchAll(PDO::FETCH_ASSOC);
+        foreach ($topCategories as $top) {
+            $children = array_values(array_filter($allCategories, function ($c) use ($top) {
+                return (int) ($c['parent_id'] ?? 0) === (int) $top['id'];
+            }));
+            $slug = strtolower($top['slug'] ?? '');
+            $item = [
+                'label' => mb_strtoupper($top['name']),
+                'link' => 'kategori/' . $top['slug'],
+                'color' => in_array($slug, ['sale', 'indirim'], true) ? 'text-[#991b1b]' : 'text-primary',
+            ];
+            if (in_array($slug, ['sale', 'indirim'], true)) {
+                $item['icon'] = 'tag';
+            }
+            if (!empty($children)) {
+                $item['submenu'] = array_map(function ($c) {
+                    return ['label' => $c['name'], 'link' => 'kategori/' . $c['slug']];
+                }, $children);
+            }
+            $menuItems[] = $item;
+        }
+    } catch (Throwable $e) {
+        $menuItems = [];
+    }
+}
+if (empty($menuItems)) {
+    $menuItems = [['label' => 'KATEGORİLER', 'link' => '#', 'color' => 'text-primary']];
+}
 ?>
 <div x-data="{ mobileMenuOpen: false, searchOpen: false }">
 <div class="fixed w-full top-0 z-50 bg-white/95 backdrop-blur-sm border-b border-black/5 transition-all duration-300">
