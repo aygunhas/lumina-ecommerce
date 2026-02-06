@@ -33,6 +33,11 @@ abstract class AdminBaseController
         }
         ob_start();
         require $viewPath;
+        // Dashboard kendi layout'unu include ettiği için tekrar layout sarmalamıyoruz
+        if ($viewName === 'admin/dashboard') {
+            echo ob_get_clean();
+            return;
+        }
         $content = ob_get_clean();
 
         $pageTitle = $data['pageTitle'] ?? null;

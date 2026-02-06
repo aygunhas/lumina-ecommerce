@@ -627,6 +627,27 @@ CREATE TABLE IF NOT EXISTS `contact_messages` (
   KEY `created_at` (`created_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- -----------------------------------------------------------------------------
+-- Admin bildirim sistemi
+-- -----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS `admin_notifications` (
+  `id` int unsigned NOT NULL AUTO_INCREMENT,
+  `title` varchar(255) NOT NULL,
+  `message` text,
+  `link` varchar(255) DEFAULT NULL COMMENT 'Tıklayınca gideceği yer (örn: /admin/orders/show?id=1)',
+  `is_read` tinyint(1) NOT NULL DEFAULT 0,
+  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `is_read` (`is_read`),
+  KEY `created_at` (`created_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Dummy data (hemen test etmek için; schema tekrar çalıştırılırsa satırlar tekrar eklenir)
+INSERT INTO `admin_notifications` (`title`, `message`, `is_read`, `link`) VALUES
+('Yeni Sipariş', '#TR-8842 nolu yeni bir sipariş alındı.', 0, '/admin/orders/show?id=1'),
+('Stok Uyarısı', 'Siyah Tişört (L) stokları kritik seviyede.', 0, '/admin/products/edit?id=3'),
+('Yeni Üye', 'Ahmet Yılmaz sisteme kayıt oldu.', 1, '/admin/customers/show?id=5');
+
 SET FOREIGN_KEY_CHECKS = 1;
 
 -- =============================================================================
@@ -652,3 +673,4 @@ SET FOREIGN_KEY_CHECKS = 1;
 -- settings → B35, B37, B38 ayarlar (Stripe, SMTP vb.)
 -- email_templates → A25, B38 e-posta şablonları
 -- contact_messages → A35 iletişim formu
+-- admin_notifications → Admin bildirim sistemi (yeni sipariş, stok uyarısı, yeni üye vb.)

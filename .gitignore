@@ -31,6 +31,20 @@ Thumbs.db
 /storage/backups/*
 !/storage/backups/.gitkeep
 
-# .env.local
+# .env.local ve diğer ortam dosyaları
 .env.local
-.docs/
+.env.*.local
+
+# Node (npm/yarn) – frontend araçları kullanılıyorsa
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# PHP test / geliştirme
+.phpunit.result.cache
+phpunit.xml
+test.php
+
+# Dokümantasyon (isteğe bağlı: repoda tutmak isterseniz bu satırı kaldırın)
+/docs/

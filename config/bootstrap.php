@@ -52,6 +52,12 @@ if (!function_exists('env')) {
     }
 }
 
+// Helper fonksiyonları (get_admin_notifications vb.)
+$helpersPath = BASE_PATH . '/app/Helpers/functions.php';
+if (is_file($helpersPath)) {
+    require $helpersPath;
+}
+
 // Basit PSR-4 benzeri autoload: App\ -> app/
 spl_autoload_register(function (string $class): void {
     $prefix = 'App\\';

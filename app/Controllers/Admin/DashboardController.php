@@ -15,6 +15,8 @@ class DashboardController extends AdminBaseController
     {
         $pdo = Database::getConnection();
         $stats = [
+            'sales_today' => (float) $pdo->query("SELECT COALESCE(SUM(total), 0) FROM orders WHERE DATE(created_at) = CURDATE() AND status NOT IN ('cancelled', 'refunded')")->fetchColumn(),
+            'orders_pending' => (int) $pdo->query("SELECT COUNT(*) FROM orders WHERE status = 'pending'")->fetchColumn(),
             'orders_today' => (int) $pdo->query("SELECT COUNT(*) FROM orders WHERE DATE(created_at) = CURDATE()")->fetchColumn(),
             'orders_total' => (int) $pdo->query('SELECT COUNT(*) FROM orders')->fetchColumn(),
             'products_total' => (int) $pdo->query('SELECT COUNT(*) FROM products')->fetchColumn(),
