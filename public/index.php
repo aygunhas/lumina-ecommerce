@@ -24,9 +24,7 @@ $routes = require dirname(__DIR__) . '/config/routes.php';
 $matched = $router->match($routes);
 
 if ($matched === null) {
-    http_response_code(404);
-    echo '<!DOCTYPE html><html><head><meta charset="utf-8"><title>404</title></head><body><h1>Sayfa bulunamadı</h1></body></html>';
-    exit;
+    require BASE_PATH . '/includes/render-404.php';
 }
 
 [$controllerClass, $method] = $matched;

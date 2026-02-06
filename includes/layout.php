@@ -14,8 +14,16 @@
     <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;500;600&family=Inter:wght@300;400;500&display=swap" rel="stylesheet">
     <!-- Tailwind CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="<?= $baseUrl ?>/assets/css/main.css">
     <style>
         [x-cloak] { display: none !important; }
+        /* Custom scrollbar - WebKit (Chrome, Safari, Edge) */
+        *::-webkit-scrollbar { width: 4px; height: 4px; }
+        *::-webkit-scrollbar-track { background: transparent; }
+        *::-webkit-scrollbar-thumb { background: #000; border-radius: 9999px; }
+        *::-webkit-scrollbar-thumb:hover { background: #0a0a0a; }
+        /* Custom scrollbar - Firefox */
+        * { scrollbar-width: thin; scrollbar-color: #000 transparent; }
     </style>
     <script>
         tailwind.config = {
@@ -45,13 +53,32 @@
     <!-- Alpine.js (İnteraktivite) -->
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3/dist/cdn.min.js"></script>
 </head>
-<body class="font-body text-primary antialiased bg-white selection:bg-black selection:text-white">
-    <?php include __DIR__ . '/header.php'; ?>
-    <main class="min-h-screen">
+<body class="font-body text-primary antialiased bg-white selection:bg-black selection:text-white"
+      x-data="{ loaded: false }"
+      x-init="window.addEventListener('load', () => { setTimeout(() => loaded = true, 800); })">
+    <?php include __DIR__ . '/loader.php'; ?>
+    <div class="fixed top-0 left-0 w-full z-50 flex flex-col">
+        <?php include __DIR__ . '/top-bar.php'; ?>
+        <?php include __DIR__ . '/header.php'; ?>
+    </div>
+    <main class="min-h-screen pt-[140px]">
         <?php echo $content ?? ''; ?>
     </main>
     <?php include __DIR__ . '/footer.php'; ?>
     <?php include __DIR__ . '/cart-drawer.php'; ?>
     <?php include __DIR__ . '/toast.php'; ?>
+    <?php
+    if (!empty($_SESSION['toast_message'])) {
+        $toastMsg = $_SESSION['toast_message'];
+        $toastType = $_SESSION['toast_type'] ?? 'success';
+        unset($_SESSION['toast_message'], $_SESSION['toast_type']);
+    ?>
+    <script>
+    document.addEventListener('alpine:initialized', function() {
+        window.dispatchEvent(new CustomEvent('notify', { detail: { message: <?= json_encode($toastMsg, JSON_UNESCAPED_UNICODE) ?>, type: <?= json_encode($toastType) ?> } }));
+    });
+    </script>
+    <?php } ?>
+    <?php include __DIR__ . '/cookie-banner.php'; ?>
 </body>
 </html>

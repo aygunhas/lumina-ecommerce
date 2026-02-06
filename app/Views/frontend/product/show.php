@@ -65,7 +65,36 @@ $galleryJson = json_encode($productImageUrls);
             selectedSize: null,
             sizeStock: { XS: true, S: true, M: true, L: true, XL: false },
             buttonLabel: 'Sepete Ekle',
-            addedFeedback: false
+            addedFeedback: false,
+            hasVariants: <?= $hasVariants ? 'true' : 'false' ?>,
+            addToCart() {
+                var form = document.getElementById(this.hasVariants ? 'add-cart-variant-form' : 'add-cart-simple-form');
+                if (this.hasVariants) {
+                    var variantEl = document.getElementById('product_variant_id');
+                    if (!variantEl || !variantEl.value) {
+                        this.$dispatch('notify', { message: 'Lütfen varyant seçin.' });
+                        return;
+                    }
+                } else {
+                    if (!this.selectedSize) {
+                        this.$dispatch('notify', { message: 'Lütfen beden seçin.' });
+                        return;
+                    }
+                }
+                var self = this;
+                fetch(form.action, { method: 'POST', body: new FormData(form), headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+                    .then(function(r) { return r.json(); })
+                    .then(function(data) {
+                        if (data.success) {
+                            self.$dispatch('cart-updated');
+                            self.$dispatch('cart-open');
+                            self.$dispatch('notify', { message: 'Ürün sepete eklendi.' });
+                        } else {
+                            self.$dispatch('notify', { message: data.message || 'Hata oluştu.' });
+                        }
+                    })
+                    .catch(function() { self.$dispatch('notify', { message: 'Bir hata oluştu.' }); });
+            }
         }">
             <!-- Etiketler -->
             <div class="flex flex-wrap gap-2 mb-4">
@@ -160,34 +189,7 @@ $galleryJson = json_encode($productImageUrls);
             </form>
             <button type="button"
                 id="add-cart-btn"
-                data-has-variants="<?= $hasVariants ? '1' : '0' ?>"
-                @click.prevent="
-                    var hasVariants = document.getElementById('add-cart-btn').getAttribute('data-has-variants') === '1';
-                    var form = document.getElementById(hasVariants ? 'add-cart-variant-form' : 'add-cart-simple-form');
-                    if (hasVariants) {
-                        if (!document.getElementById('product_variant_id').value) {
-                            $dispatch('notify', { message: 'Lütfen varyant seçin.' });
-                            return;
-                        }
-                    } else {
-                        if (!selectedSize) {
-                            $dispatch('notify', { message: 'Lütfen beden seçin.' });
-                            return;
-                        }
-                    }
-                    fetch(form.action, { method: 'POST', body: new FormData(form), headers: { 'X-Requested-With': 'XMLHttpRequest' } })
-                        .then(function(r){ return r.json(); })
-                        .then(function(data){
-                            if (data.success) {
-                                $dispatch('cart-updated');
-                                $dispatch('cart-open');
-                                $dispatch('notify', { message: 'Ürün sepete eklendi.' });
-                            } else {
-                                $dispatch('notify', { message: data.message || 'Hata oluştu.' });
-                            }
-                        })
-                        .catch(function(){ $dispatch('notify', { message: 'Bir hata oluştu.' }); });
-                "
+                @click.prevent="addToCart()"
                 class="w-full bg-black text-white py-4 mt-8 uppercase tracking-widest text-xs font-bold hover:bg-gray-800 transition disabled:opacity-50 disabled:cursor-not-allowed">
                 Sepete Ekle
             </button>

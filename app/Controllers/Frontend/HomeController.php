@@ -63,7 +63,7 @@ class HomeController
 
         $title = env('APP_NAME', 'Lumina Boutique');
         $baseUrl = $this->baseUrl();
-        $this->render('frontend/home', compact('title', 'baseUrl', 'categories', 'featuredProducts', 'productImages', 'sliders'));
+        $this->renderWithIncludesLayout('frontend/home', compact('title', 'baseUrl', 'categories', 'featuredProducts', 'productImages', 'sliders'));
     }
 
     private function baseUrl(): string
@@ -73,7 +73,8 @@ class HomeController
         return ($base === '/' || $base === '\\') ? '' : $base;
     }
 
-    private function render(string $view, array $data = []): void
+    /** includes/layout.php kullanır (top bar, header, footer, cart-drawer, toast). */
+    private function renderWithIncludesLayout(string $view, array $data = []): void
     {
         extract($data, EXTR_SKIP);
         $viewPath = BASE_PATH . '/app/Views/' . str_replace('.', '/', $view) . '.php';
@@ -84,7 +85,6 @@ class HomeController
         ob_start();
         require $viewPath;
         $content = ob_get_clean();
-        $layoutPath = BASE_PATH . '/app/Views/frontend/layouts/main.php';
-        require $layoutPath;
+        require BASE_PATH . '/includes/layout.php';
     }
 }

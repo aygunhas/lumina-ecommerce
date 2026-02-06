@@ -38,18 +38,24 @@ return [
     '/sepet' => [CartController::class, 'index', []],
     '/sepet/ekle' => [CartController::class, 'add', []],
     '/sepet/guncelle' => [CartController::class, 'update', []],
+    '/sepet/cekmece' => [CartController::class, 'drawerData', []],
     '/sepet/sil' => [CartController::class, 'remove', []],
     '/odeme' => [CheckoutController::class, 'index', []],
     '/odeme/tamamlandi' => [CheckoutController::class, 'success', []],
     '/iletisim' => [ContactController::class, 'index', []],
+    '/siparis-takip' => [PageController::class, 'trackOrder', []],
     '/hakkimizda' => [PageController::class, 'about', []],
+    '/sss' => [PageController::class, 'faq', []],
     '/sayfa/:slug' => [PageController::class, 'showBySlug', []],
+    '/arama/suggest' => [SearchController::class, 'suggest', []],
     '/arama' => [SearchController::class, 'index', []],
 
-    // Üye: kayıt, giriş, çıkış
+    // Üye: kayıt, giriş, çıkış, şifremi unuttum, şifre sıfırla
     '/kayit' => [UserAuthController::class, 'registerForm', []],
     '/giris' => [UserAuthController::class, 'loginForm', []],
     '/cikis' => [UserAuthController::class, 'logout', []],
+    '/sifremi-unuttum' => [UserAuthController::class, 'forgotPasswordForm', []],
+    '/sifre-sifirla' => [UserAuthController::class, 'resetPasswordForm', []],
 
     // Hesabım (giriş gerekli)
     '/hesabim' => [AccountController::class, 'index', ['user']],

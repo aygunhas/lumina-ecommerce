@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Controllers\Frontend;
 
 use App\Config\Database;
+use App\Helpers\Settings;
 use PDO;
 
 /**
@@ -114,9 +115,17 @@ class CartController
     public function index(): void
     {
         [$items, $subtotal] = self::getCartItems();
+        $freeShippingMin = Settings::get('shipping', 'free_shipping_min');
+        $freeShippingMin = $freeShippingMin !== null && $freeShippingMin !== '' ? (float) str_replace(',', '.', $freeShippingMin) : 0.0;
+        $shippingCost = 0.0;
+        if ($freeShippingMin > 0 && $subtotal < $freeShippingMin) {
+            $cost = Settings::get('shipping', 'shipping_cost');
+            $shippingCost = $cost !== null && $cost !== '' ? (float) str_replace(',', '.', $cost) : 0.0;
+        }
+        $total = $subtotal + $shippingCost;
         $title = 'Sepetim - ' . env('APP_NAME', 'Lumina Boutique');
         $baseUrl = $this->baseUrl();
-        $this->render('frontend/cart/index', compact('title', 'baseUrl', 'items', 'subtotal'));
+        $this->renderWithIncludesLayout('frontend/cart/index', compact('title', 'baseUrl', 'items', 'subtotal', 'freeShippingMin', 'shippingCost', 'total'));
     }
 
     public function add(): void
@@ -255,17 +264,47 @@ class CartController
                 }
             }
             $removed = $quantity < 1;
+            $freeShippingMin = Settings::get('shipping', 'free_shipping_min');
+            $freeShippingMin = $freeShippingMin !== null && $freeShippingMin !== '' ? (float) str_replace(',', '.', $freeShippingMin) : 0.0;
+            $shippingCost = 0.0;
+            if ($freeShippingMin > 0 && $subtotal < $freeShippingMin) {
+                $cost = Settings::get('shipping', 'shipping_cost');
+                $shippingCost = $cost !== null && $cost !== '' ? (float) str_replace(',', '.', $cost) : 0.0;
+            }
+            $total = $subtotal + $shippingCost;
             $this->ajaxResponse([
                 'success' => true,
                 'quantity' => $removed ? 0 : (int) ($updatedItem['quantity'] ?? 0),
                 'line_total' => $removed ? 0.0 : (float) ($updatedItem['total'] ?? 0),
                 'subtotal' => (float) $subtotal,
+                'shipping_cost' => (float) $shippingCost,
+                'total' => (float) $total,
                 'cart_count' => (int) $cartCount,
                 'removed' => $removed,
             ]);
             return;
         }
         header('Location: ' . $this->baseUrl() . '/sepet');
+        exit;
+    }
+
+    /** AJAX: Çekmece için güncel sepet verisi (items, subtotal, cart_count). */
+    public function drawerData(): void
+    {
+        [$items, $subtotal] = self::getCartItems();
+        $cartCount = 0;
+        foreach ($items as $item) {
+            $cartCount += (int) ($item['quantity'] ?? 0);
+        }
+        $baseUrl = $this->baseUrl();
+        header('Content-Type: application/json; charset=utf-8');
+        header('X-Requested-With: XMLHttpRequest');
+        echo json_encode([
+            'baseUrl' => $baseUrl,
+            'items' => $items,
+            'subtotal' => (float) $subtotal,
+            'cart_count' => (int) $cartCount,
+        ], JSON_UNESCAPED_UNICODE);
         exit;
     }
 
@@ -298,6 +337,22 @@ class CartController
         require $viewPath;
         $content = ob_get_clean();
         $layoutPath = BASE_PATH . '/app/Views/frontend/layouts/main.php';
+        require $layoutPath;
+    }
+
+    /** Sepet sayfası: includes/layout.php kullanır (header, footer, cart-drawer, toast). */
+    private function renderWithIncludesLayout(string $view, array $data = []): void
+    {
+        extract($data, EXTR_SKIP);
+        $viewPath = BASE_PATH . '/app/Views/' . str_replace('.', '/', $view) . '.php';
+        if (!is_file($viewPath)) {
+            echo '<p>Görünüm bulunamadı.</p>';
+            return;
+        }
+        ob_start();
+        require $viewPath;
+        $content = ob_get_clean();
+        $layoutPath = BASE_PATH . '/includes/layout.php';
         require $layoutPath;
     }
 }

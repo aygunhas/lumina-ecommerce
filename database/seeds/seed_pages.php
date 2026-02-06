@@ -39,10 +39,22 @@ $pages = [
         'sort_order' => 30,
     ],
     [
+        'slug' => 'gizlilik',
+        'title' => 'Gizlilik Politikası',
+        'content' => "<h2 id=\"veri-toplama\">Veri Toplama</h2><p>Bu sayfada kişisel verilerinizin hangi amaçlarla toplandığı ve nasıl işlendiği yer alacaktır. İçerik panelden düzenlenebilir.</p><h2 id=\"haklariniz\">Haklarınız</h2><p>KVKK kapsamındaki haklarınız ve başvuru yöntemleri bu bölümde açıklanacaktır.</p>",
+        'sort_order' => 35,
+    ],
+    [
         'slug' => 'kvkk',
-        'title' => 'Gizlilik ve KVKK',
-        'content' => "Gizlilik politikası ve KVKK aydınlatma metni bu sayfada yer alacaktır.\n\nKişisel verilerinizin işlenmesi, saklanması ve paylaşımına ilişkin bilgiler panelden düzenlenebilir.",
+        'title' => 'KVKK Aydınlatma Metni',
+        'content' => "KVKK aydınlatma metni bu sayfada yer alacaktır.\n\nKişisel verilerinizin işlenmesi, saklanması ve paylaşımına ilişkin bilgiler panelden düzenlenebilir.",
         'sort_order' => 40,
+    ],
+    [
+        'slug' => 'cerez-politikasi',
+        'title' => 'Çerez Politikası',
+        'content' => "<h2 id=\"cerezler\">Çerezler</h2><p>Web sitemizde kullanılan çerez türleri ve amaçları bu sayfada açıklanacaktır. İçerik panelden düzenlenebilir.</p><h2 id=\"yonetim\">Çerez Yönetimi</h2><p>Tarayıcı ayarlarından çerez tercihlerinizi nasıl yönetebileceğiniz anlatılacaktır.</p>",
+        'sort_order' => 45,
     ],
     [
         'slug' => 'mesafeli-satis-sozlesmesi',

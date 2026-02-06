@@ -23,7 +23,7 @@ class ContactController
         $old = $_SESSION['contact_old'] ?? [];
         $success = !empty($_SESSION['contact_success']);
         unset($_SESSION['contact_errors'], $_SESSION['contact_old'], $_SESSION['contact_success']);
-        $this->render('frontend/contact/index', compact('title', 'baseUrl', 'errors', 'old', 'success'));
+        $this->renderWithIncludesLayout('frontend/contact/contact', compact('title', 'baseUrl', 'errors', 'old', 'success'));
     }
 
     private function submit(): void
@@ -67,7 +67,7 @@ class ContactController
         return ($base === '/' || $base === '\\') ? '' : $base;
     }
 
-    private function render(string $view, array $data = []): void
+    private function renderWithIncludesLayout(string $view, array $data = []): void
     {
         extract($data, EXTR_SKIP);
         $viewPath = BASE_PATH . '/app/Views/' . str_replace('.', '/', $view) . '.php';
@@ -78,7 +78,7 @@ class ContactController
         ob_start();
         require $viewPath;
         $content = ob_get_clean();
-        $layoutPath = BASE_PATH . '/app/Views/frontend/layouts/main.php';
+        $layoutPath = BASE_PATH . '/includes/layout.php';
         require $layoutPath;
     }
 }

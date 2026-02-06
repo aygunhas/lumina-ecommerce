@@ -29,9 +29,7 @@ class ProductController
         $stmt->execute([$slug]);
         $product = $stmt->fetch(PDO::FETCH_ASSOC);
         if (!$product) {
-            http_response_code(404);
-            echo '<!DOCTYPE html><html><head><meta charset="utf-8"><title>404</title></head><body><h1>Ürün bulunamadı</h1></body></html>';
-            exit;
+            require BASE_PATH . '/includes/render-404.php';
         }
         $pdo->prepare('UPDATE products SET view_count = view_count + 1 WHERE id = ?')->execute([$product['id']]);
         $stmt = $pdo->prepare('SELECT path FROM product_images WHERE product_id = ? ORDER BY sort_order ASC, id ASC');

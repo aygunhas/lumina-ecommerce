@@ -1,4 +1,6 @@
 <?php
+$includesPath = defined('BASE_PATH') ? BASE_PATH . '/includes' : dirname(__DIR__, 3) . '/includes';
+include_once $includesPath . '/functions.php';
 $baseUrl = $baseUrl ?? '';
 ?>
 <!DOCTYPE html>
@@ -15,6 +17,17 @@ $baseUrl = $baseUrl ?? '';
     <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;500;600&family=Inter:wght@300;400;500&display=swap" rel="stylesheet">
     <!-- Tailwind CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="<?= $baseUrl ?>/assets/css/main.css">
+    <style>
+        [x-cloak] { display: none !important; }
+        /* Custom scrollbar - WebKit (Chrome, Safari, Edge) */
+        *::-webkit-scrollbar { width: 4px; height: 4px; }
+        *::-webkit-scrollbar-track { background: transparent; }
+        *::-webkit-scrollbar-thumb { background: #000; border-radius: 9999px; }
+        *::-webkit-scrollbar-thumb:hover { background: #0a0a0a; }
+        /* Custom scrollbar - Firefox */
+        * { scrollbar-width: thin; scrollbar-color: #000 transparent; }
+    </style>
     <script>
         tailwind.config = {
             theme: {
@@ -40,18 +53,37 @@ $baseUrl = $baseUrl ?? '';
             },
         }
     </script>
-    <style>[x-cloak] { display: none !important; }</style>
-    <!-- Alpine.js + Intersect (lazy-load / scroll tetikleyici) -->
+    <!-- Alpine.js + Intersect + Collapse (SSS akordiyon vb.) -->
     <script defer src="https://cdn.jsdelivr.net/npm/@alpinejs/intersect@3.x.x/dist/cdn.min.js"></script>
-    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/@alpinejs/collapse@3.x.x/dist/cdn.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3/dist/cdn.min.js"></script>
 </head>
-<body class="font-body text-primary antialiased bg-white selection:bg-black selection:text-white">
-    <?php require (defined('BASE_PATH') ? BASE_PATH : dirname(__DIR__, 3)) . '/includes/header.php'; ?>
-    <main class="min-h-screen">
+<body class="font-body text-primary antialiased bg-white selection:bg-black selection:text-white"
+      x-data="{ loaded: false }"
+      x-init="window.addEventListener('load', () => { setTimeout(() => loaded = true, 800); })">
+    <?php include $includesPath . '/loader.php'; ?>
+    <div class="fixed top-0 left-0 w-full z-50 flex flex-col">
+        <?php include $includesPath . '/top-bar.php'; ?>
+        <?php include $includesPath . '/header.php'; ?>
+    </div>
+    <main class="min-h-screen pt-[140px]">
         <?= $content ?? '' ?>
     </main>
-    <?php require (defined('BASE_PATH') ? BASE_PATH : dirname(__DIR__, 3)) . '/includes/footer.php'; ?>
-    <?php require (defined('BASE_PATH') ? BASE_PATH : dirname(__DIR__, 3)) . '/includes/cart-drawer.php'; ?>
-    <?php require (defined('BASE_PATH') ? BASE_PATH : dirname(__DIR__, 3)) . '/includes/toast.php'; ?>
+    <?php include $includesPath . '/footer.php'; ?>
+    <?php include $includesPath . '/cart-drawer.php'; ?>
+    <?php include $includesPath . '/toast.php'; ?>
+    <?php
+    if (!empty($_SESSION['toast_message'])) {
+        $toastMsg = $_SESSION['toast_message'];
+        $toastType = $_SESSION['toast_type'] ?? 'success';
+        unset($_SESSION['toast_message'], $_SESSION['toast_type']);
+    ?>
+    <script>
+    document.addEventListener('alpine:initialized', function() {
+        window.dispatchEvent(new CustomEvent('notify', { detail: { message: <?= json_encode($toastMsg, JSON_UNESCAPED_UNICODE) ?>, type: <?= json_encode($toastType) ?> } }));
+    });
+    </script>
+    <?php } ?>
+    <?php include $includesPath . '/cookie-banner.php'; ?>
 </body>
 </html>

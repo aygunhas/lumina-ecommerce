@@ -45,6 +45,7 @@ class UserAuthController
         $firstName = trim($_POST['first_name'] ?? '');
         $lastName = trim($_POST['last_name'] ?? '');
         $phone = trim($_POST['phone'] ?? '');
+        $acceptTerms = !empty($_POST['accept_terms']) && $_POST['accept_terms'] === '1';
 
         $errors = [];
         if ($email === '') {
@@ -52,8 +53,17 @@ class UserAuthController
         } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
             $errors['email'] = 'Geçerli bir e-posta girin.';
         }
-        if (strlen($password) < 6) {
-            $errors['password'] = 'Şifre en az 6 karakter olmalıdır.';
+        if (strlen($password) < 8) {
+            $errors['password'] = 'Şifre en az 8 karakter olmalıdır.';
+        } elseif (!preg_match('/[A-Z]/', $password)) {
+            $errors['password'] = 'Şifre en az bir büyük harf içermelidir.';
+        } elseif (!preg_match('/[0-9]/', $password)) {
+            $errors['password'] = 'Şifre en az bir rakam içermelidir.';
+        } elseif (!preg_match('/[^A-Za-z0-9]/', $password)) {
+            $errors['password'] = 'Şifre en az bir özel karakter içermelidir (!@#$% vb.).';
+        }
+        if (!$acceptTerms) {
+            $errors['accept_terms'] = 'Üyelik Sözleşmesi ve Gizlilik Politikası\'nı kabul etmeniz gerekmektedir.';
         }
         if ($firstName === '') {
             $errors['first_name'] = 'Ad zorunludur.';
@@ -154,8 +164,10 @@ class UserAuthController
         $_SESSION['user_id'] = (int) $user['id'];
         $_SESSION['user_email'] = $user['email'];
         $_SESSION['user_name'] = trim(($user['first_name'] ?? '') . ' ' . ($user['last_name'] ?? ''));
-        $target = $redirect !== '' && strpos($redirect, '/') === 0 ? $redirect : '/hesabim';
-        header('Location: ' . $baseUrl . $target);
+        $firstName = trim($user['first_name'] ?? '');
+        $_SESSION['toast_message'] = $firstName !== '' ? 'Hoş geldiniz, ' . $firstName . '!' : 'Hoş geldiniz!';
+        $_SESSION['toast_type'] = 'success';
+        header('Location: ' . $baseUrl . '/');
         exit;
     }
 
@@ -164,6 +176,33 @@ class UserAuthController
         unset($_SESSION['user_id'], $_SESSION['user_email'], $_SESSION['user_name']);
         header('Location: ' . $this->baseUrl() . '/');
         exit;
+    }
+
+    /** Şifremi unuttum – e-posta girişi (split screen, Alpine state form/success) */
+    public function forgotPasswordForm(): void
+    {
+        $title = 'Şifremi Unuttum - ' . env('APP_NAME', 'Lumina Boutique');
+        $baseUrl = $this->baseUrl();
+        $errors = $_SESSION['forgot_errors'] ?? [];
+        $old = $_SESSION['forgot_old'] ?? [];
+        unset($_SESSION['forgot_errors'], $_SESSION['forgot_old']);
+        if (!empty($_GET['sent'])) {
+            $this->render('frontend/auth/forgot-password', compact('title', 'baseUrl', 'errors', 'old') + ['showSuccess' => true]);
+            return;
+        }
+        $this->render('frontend/auth/forgot-password', compact('title', 'baseUrl', 'errors', 'old'));
+    }
+
+    /** Şifre sıfırlama – yeni şifre formu (e-posta linkinden token ile) */
+    public function resetPasswordForm(): void
+    {
+        $title = 'Yeni Şifre - ' . env('APP_NAME', 'Lumina Boutique');
+        $baseUrl = $this->baseUrl();
+        $token = trim($_GET['token'] ?? '');
+        $errors = $_SESSION['reset_errors'] ?? [];
+        $old = $_SESSION['reset_old'] ?? [];
+        unset($_SESSION['reset_errors'], $_SESSION['reset_old']);
+        $this->render('frontend/auth/reset-password', compact('title', 'baseUrl', 'token', 'errors', 'old'));
     }
 
     private function baseUrl(): string

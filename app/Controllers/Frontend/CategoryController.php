@@ -33,9 +33,7 @@ class CategoryController
         $stmt->execute([$slug]);
         $category = $stmt->fetch(PDO::FETCH_ASSOC);
         if (!$category) {
-            http_response_code(404);
-            echo '<!DOCTYPE html><html><head><meta charset="utf-8"><title>404</title></head><body><h1>Kategori bulunamadı</h1></body></html>';
-            exit;
+            require BASE_PATH . '/includes/render-404.php';
         }
         $sort = $_GET['sort'] ?? 'default';
         if (!isset(self::SORT_OPTIONS[$sort])) {

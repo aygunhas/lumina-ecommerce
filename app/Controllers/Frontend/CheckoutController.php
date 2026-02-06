@@ -18,14 +18,17 @@ class CheckoutController
         if (strpos($key, '_v') !== false) {
             $parts = explode('_v', $key, 2);
             if (count($parts) === 2 && $parts[0] !== '' && preg_match('/^p\d+$/', $parts[0]) && is_numeric($parts[1])) {
-                return ['product_id' => (int) ltrim($parts[0], 'p'), 'variant_id' => (int) $parts[1]];
+                return ['product_id' => (int) ltrim($parts[0], 'p'), 'variant_id' => (int) $parts[1], 'size' => null];
             }
+        }
+        if (preg_match('/^p(\d+)_s_(.+)$/', $key, $m)) {
+            return ['product_id' => (int) $m[1], 'variant_id' => null, 'size' => $m[2]];
         }
         if (preg_match('/^p?\d+$/', $key)) {
             $id = (int) ltrim($key, 'p');
-            return ['product_id' => $id, 'variant_id' => null];
+            return ['product_id' => $id, 'variant_id' => null, 'size' => null];
         }
-        return ['product_id' => 0, 'variant_id' => null];
+        return ['product_id' => 0, 'variant_id' => null, 'size' => null];
     }
 
     private static function getShippingCost(float $subtotal): float
@@ -111,7 +114,7 @@ class CheckoutController
                 $row = $stmt->fetch(PDO::FETCH_ASSOC);
                 if (!$row) continue;
                 $row['variant_id'] = null;
-                $row['attributes_summary'] = null;
+                $row['attributes_summary'] = !empty($parsed['size']) ? 'Beden: ' . $parsed['size'] : null;
             }
             $price = $row['sale_price'] !== null && (float) $row['sale_price'] > 0 ? (float) $row['sale_price'] : (float) $row['price'];
             $stock = (int) ($row['stock'] ?? 0);
@@ -119,6 +122,9 @@ class CheckoutController
             $row['price'] = $price;
             $row['total'] = $row['price'] * $row['quantity'];
             $row['id'] = (int) $row['product_id'];
+            $stmtImg = $pdo->prepare('SELECT path FROM product_images WHERE product_id = ? ORDER BY sort_order ASC, id ASC LIMIT 1');
+            $stmtImg->execute([$productId]);
+            $row['image_path'] = $stmtImg->fetchColumn() ?: null;
             $subtotal += $row['total'];
             $items[] = $row;
         }
@@ -159,7 +165,7 @@ class CheckoutController
         $userName = '';
         $userPhone = '';
         if ($userId > 0) {
-            $stmt = $pdo->prepare('SELECT id, title, first_name, last_name, phone, city, district, address_line, postal_code FROM addresses WHERE user_id = ? ORDER BY is_default DESC, id ASC');
+            $stmt = $pdo->prepare('SELECT id, title, first_name, last_name, phone, city, district, address_line, postal_code, is_default FROM addresses WHERE user_id = ? ORDER BY is_default DESC, id ASC');
             $stmt->execute([$userId]);
             $userAddresses = $stmt->fetchAll(PDO::FETCH_ASSOC);
             $stmt = $pdo->prepare('SELECT email, first_name, last_name, phone FROM users WHERE id = ? LIMIT 1');
@@ -173,7 +179,7 @@ class CheckoutController
         }
         $title = 'Ödeme - ' . env('APP_NAME', 'Lumina Boutique');
         $baseUrl = $this->baseUrl();
-        $this->render('frontend/checkout/form', compact('title', 'baseUrl', 'items', 'subtotal', 'shippingCost', 'discountAmount', 'appliedCoupon', 'total', 'errors', 'old', 'paymentSettings', 'userAddresses', 'userId', 'userEmail', 'userName', 'userPhone'));
+        $this->render('frontend/checkout/checkout', compact('title', 'baseUrl', 'items', 'subtotal', 'shippingCost', 'discountAmount', 'appliedCoupon', 'total', 'errors', 'old', 'paymentSettings', 'userAddresses', 'userId', 'userEmail', 'userName', 'userPhone'));
     }
 
     public function store(): void
@@ -230,6 +236,9 @@ class CheckoutController
         if ($district === '') $errors['shipping_district'] = 'İlçe zorunludur.';
         if ($addressLine === '') $errors['shipping_address_line'] = 'Adres zorunludur.';
         if ($email === '') $errors['guest_email'] = 'E-posta zorunludur.';
+        if (empty($_POST['accept_kvkk_mesafeli']) || $_POST['accept_kvkk_mesafeli'] !== '1') {
+            $errors['accept_kvkk_mesafeli'] = 'KVKK Aydınlatma Metni ve Mesafeli Satış Sözleşmesi\'ni kabul etmeniz gerekmektedir.';
+        }
         if (!empty($errors)) {
             $_SESSION['checkout_errors'] = $errors;
             $_SESSION['checkout_old'] = $_POST;
@@ -260,7 +269,7 @@ class CheckoutController
                 $p = $stmt->fetch(PDO::FETCH_ASSOC);
                 if (!$p) continue;
                 $p['variant_id'] = null;
-                $attributesSummary = null;
+                $attributesSummary = !empty($parsed['size']) ? 'Beden: ' . $parsed['size'] : null;
             }
             $price = $p['sale_price'] !== null && (float) $p['sale_price'] > 0 ? (float) $p['sale_price'] : (float) $p['price'];
             $stock = (int) ($p['stock'] ?? 0);
@@ -269,11 +278,11 @@ class CheckoutController
             $total = $price * $qty;
             $subtotal += $total;
             $orderItems[] = [
-                'product_id' => (int) $p['product_id'] ?? (int) $p['id'],
+                'product_id' => (int) ($p['product_id'] ?? $p['id']),
                 'product_variant_id' => isset($p['variant_id']) && $p['variant_id'] !== null ? (int) $p['variant_id'] : null,
-                'product_name' => $p['name'],
-                'product_sku' => $p['sku'] ?? '',
-                'attributes_summary' => $attributesSummary,
+                'product_name' => (string) ($p['name'] ?? ''),
+                'product_sku' => (string) ($p['sku'] ?? ''),
+                'attributes_summary' => $attributesSummary !== null ? (string) $attributesSummary : null,
                 'quantity' => $qty,
                 'price' => $price,
                 'total' => $total,
@@ -327,14 +336,14 @@ class CheckoutController
             foreach ($orderItems as $item) {
                 $orderItemsStmt->execute([
                     $orderId,
-                    $item['product_id'],
+                    (int) $item['product_id'],
                     $item['product_variant_id'] ?? null,
-                    $item['product_name'],
-                    $item['product_sku'],
-                    $item['attributes_summary'] ?? null,
-                    $item['quantity'],
-                    $item['price'],
-                    $item['total'],
+                    (string) ($item['product_name'] ?? ''),
+                    (string) ($item['product_sku'] ?? ''),
+                    isset($item['attributes_summary']) && $item['attributes_summary'] !== '' ? (string) $item['attributes_summary'] : null,
+                    (int) $item['quantity'],
+                    (float) $item['price'],
+                    (float) $item['total'],
                 ]);
                 if (!empty($item['product_variant_id'])) {
                     $pdo->prepare('UPDATE product_variants SET stock = stock - ? WHERE id = ?')->execute([$item['quantity'], $item['product_variant_id']]);
@@ -349,14 +358,21 @@ class CheckoutController
             $pdo->commit();
         } catch (\Throwable $e) {
             $pdo->rollBack();
-            error_log('Checkout order error: ' . $e->getMessage());
-            $_SESSION['checkout_errors'] = ['Sipariş oluşturulurken hata oluştu.'];
+            error_log('Checkout order error: ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine());
+            error_log('Checkout order trace: ' . $e->getTraceAsString());
+            $_SESSION['checkout_errors'] = ['Sipariş oluşturulurken hata oluştu. (' . $e->getMessage() . ')'];
             $_SESSION['checkout_old'] = $_POST;
             header('Location: ' . $baseUrl . '/odeme');
             exit;
         }
         $_SESSION['cart'] = [];
         $_SESSION['order_success'] = $orderNumber;
+        $_SESSION['order_success_data'] = [
+            'order_number' => $orderNumber,
+            'customer_name' => $firstName,
+            'guest_email' => $email,
+            'is_guest' => $userId <= 0,
+        ];
         header('Location: ' . $baseUrl . '/odeme/tamamlandi');
         exit;
     }
@@ -364,10 +380,14 @@ class CheckoutController
     public function success(): void
     {
         $orderNumber = $_SESSION['order_success'] ?? null;
-        unset($_SESSION['order_success']);
+        $successData = $_SESSION['order_success_data'] ?? [];
+        unset($_SESSION['order_success'], $_SESSION['order_success_data']);
         $title = 'Siparişiniz alındı - ' . env('APP_NAME', 'Lumina Boutique');
         $baseUrl = $this->baseUrl();
-        $this->render('frontend/checkout/success', compact('title', 'baseUrl', 'orderNumber'));
+        $customerName = $successData['customer_name'] ?? '';
+        $guestEmail = $successData['guest_email'] ?? '';
+        $isGuest = (bool) ($successData['is_guest'] ?? true);
+        $this->renderWithIncludesLayout('frontend/checkout/order-success', compact('title', 'baseUrl', 'orderNumber', 'customerName', 'guestEmail', 'isGuest'));
     }
 
     private function generateOrderNumber(PDO $pdo): string
@@ -405,5 +425,32 @@ class CheckoutController
         $content = ob_get_clean();
         $layoutPath = BASE_PATH . '/app/Views/frontend/layouts/main.php';
         require $layoutPath;
+    }
+
+    /** includes/layout.php kullanır (header, footer, cart-drawer, toast). */
+    private function renderWithIncludesLayout(string $view, array $data = []): void
+    {
+        extract($data, EXTR_SKIP);
+        $viewPath = BASE_PATH . '/app/Views/' . str_replace('.', '/', $view) . '.php';
+        if (!is_file($viewPath)) {
+            echo '<p>Görünüm bulunamadı.</p>';
+            return;
+        }
+        ob_start();
+        require $viewPath;
+        $content = ob_get_clean();
+        $layoutPath = BASE_PATH . '/includes/layout.php';
+        require $layoutPath;
+    }
+
+    private function renderWithoutLayout(string $view, array $data = []): void
+    {
+        extract($data, EXTR_SKIP);
+        $viewPath = BASE_PATH . '/app/Views/' . str_replace('.', '/', $view) . '.php';
+        if (!is_file($viewPath)) {
+            echo '<p>Görünüm bulunamadı.</p>';
+            return;
+        }
+        require $viewPath;
     }
 }

@@ -1,8 +1,8 @@
 <?php $baseUrl = $baseUrl ?? ''; ?>
 <footer class="bg-[#111111] text-gray-400 pt-20 pb-8">
     <div class="max-w-[1400px] mx-auto px-6">
-        <div class="grid grid-cols-1 md:grid-cols-4 gap-12 md:gap-8">
-            <!-- 1. Marka (Sol Baş) -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-12 md:gap-8">
+            <!-- 1. Marka -->
             <div>
                 <a href="<?= $baseUrl ?>/" class="font-display text-2xl text-white tracking-widest mb-6 block">LUMINA</a>
                 <p class="text-sm leading-relaxed text-gray-400 max-w-xs">Sessiz lüksün ve zamansız tasarımın adresi. Modern estetik, geleneksel işçilikle buluşuyor.</p>
@@ -19,15 +19,14 @@
                 </div>
             </div>
 
-            <!-- 2. Alışveriş (KOLEKSİYON) -->
+            <!-- 2. Koleksiyon -->
             <div>
                 <h3 class="text-xs text-white font-bold tracking-widest uppercase mb-6">KOLEKSİYON</h3>
                 <ul class="space-y-4">
-                    <li><a href="<?= $baseUrl ?>/new-arrivals.php" class="text-sm text-gray-400 hover:text-white transition">Yeni Gelenler</a></li>
-                    <li><a href="<?= $baseUrl ?>/women.php" class="text-sm text-gray-400 hover:text-white transition">Kadın</a></li>
-                    <li><a href="<?= $baseUrl ?>/men.php" class="text-sm text-gray-400 hover:text-white transition">Erkek</a></li>
-                    <li><a href="<?= $baseUrl ?>/accessories.php" class="text-sm text-gray-400 hover:text-white transition">Aksesuar</a></li>
-                    <li><a href="<?= $baseUrl ?>/sale.php" class="text-sm text-gray-400 hover:text-white transition">İndirim</a></li>
+                    <li><a href="<?= $baseUrl ?>/kategori/kadin" class="text-sm text-gray-400 hover:text-white transition">Kadın</a></li>
+                    <li><a href="<?= $baseUrl ?>/kategori/erkek" class="text-sm text-gray-400 hover:text-white transition">Erkek</a></li>
+                    <li><a href="<?= $baseUrl ?>/kategori/aksesuar" class="text-sm text-gray-400 hover:text-white transition">Aksesuar</a></li>
+                    <li><a href="<?= $baseUrl ?>/arama" class="text-sm text-gray-400 hover:text-white transition">Arama</a></li>
                 </ul>
             </div>
 
@@ -35,15 +34,26 @@
             <div>
                 <h3 class="text-xs text-white font-bold tracking-widest uppercase mb-6">MÜŞTERİ HİZMETLERİ</h3>
                 <ul class="space-y-4">
+                    <li><a href="<?= $baseUrl ?>/hakkimizda" class="text-sm text-gray-400 hover:text-white transition">Hakkımızda</a></li>
                     <li><a href="<?= $baseUrl ?>/siparis-takip" class="text-sm text-gray-400 hover:text-white transition">Sipariş Takibi</a></li>
-                    <li><a href="<?= $baseUrl ?>/sayfa/iade-kosullari" class="text-sm text-gray-400 hover:text-white transition">İade ve Değişim</a></li>
-                    <li><a href="<?= $baseUrl ?>/sayfa/kargo" class="text-sm text-gray-400 hover:text-white transition">Kargo Politikası</a></li>
-                    <li><a href="<?= $baseUrl ?>/iletisim" class="text-sm text-gray-400 hover:text-white transition">Bize Ulaşın</a></li>
+                    <li><a href="<?= $baseUrl ?>/iletisim" class="text-sm text-gray-400 hover:text-white transition">İletişim</a></li>
                     <li><a href="<?= $baseUrl ?>/sss" class="text-sm text-gray-400 hover:text-white transition">SSS</a></li>
                 </ul>
             </div>
 
-            <!-- 4. Bülten (LUMINA CLUB) -->
+            <!-- 4. Sözleşmeler -->
+            <div>
+                <h3 class="text-xs text-white font-bold tracking-widest uppercase mb-6">SÖZLEŞMELER</h3>
+                <ul class="space-y-4">
+                    <li><a href="<?= $baseUrl ?>/sayfa/gizlilik" class="text-sm text-gray-400 hover:text-white transition">Gizlilik Politikası</a></li>
+                    <li><a href="<?= $baseUrl ?>/sayfa/kvkk" class="text-sm text-gray-400 hover:text-white transition">KVKK Aydınlatma Metni</a></li>
+                    <li><a href="<?= $baseUrl ?>/sayfa/iade-kosullari" class="text-sm text-gray-400 hover:text-white transition">İade Koşulları</a></li>
+                    <li><a href="<?= $baseUrl ?>/sayfa/mesafeli-satis-sozlesmesi" class="text-sm text-gray-400 hover:text-white transition">Mesafeli Satış Sözleşmesi</a></li>
+                    <li><a href="<?= $baseUrl ?>/sayfa/cerez-politikasi" class="text-sm text-gray-400 hover:text-white transition">Çerez Politikası</a></li>
+                </ul>
+            </div>
+
+            <!-- 5. Bülten -->
             <div>
                 <h3 class="text-xs text-white font-bold tracking-widest uppercase mb-6">LUMINA CLUB</h3>
                 <p class="text-xs text-gray-400 mb-4 leading-relaxed">Yeni koleksiyonlardan ve özel davetlerden ilk siz haberdar olun.</p>
