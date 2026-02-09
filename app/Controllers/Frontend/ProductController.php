@@ -10,14 +10,13 @@ use PDO;
 /**
  * Mağaza: Ürün detay sayfası
  */
-class ProductController
+class ProductController extends FrontendBaseController
 {
     public function show(): void
     {
         $slug = $_GET['_slug'] ?? '';
         if ($slug === '') {
-            header('Location: ' . $this->baseUrl() . '/');
-            exit;
+            $this->redirect('/');
         }
         $pdo = Database::getConnection();
         $stmt = $pdo->prepare('
@@ -123,27 +122,5 @@ class ProductController
         $title = $product['name'] . ' - ' . env('APP_NAME', 'Lumina Boutique');
         $baseUrl = $this->baseUrl();
         $this->render('frontend/product/show', compact('title', 'baseUrl', 'product', 'productImagePaths', 'relatedProducts', 'relatedProductImages', 'isInWishlist', 'userId', 'productVariants', 'attributesForVariant', 'attributeValuesByAttr'));
-    }
-
-    private function baseUrl(): string
-    {
-        $script = $_SERVER['SCRIPT_NAME'] ?? '';
-        $base = dirname($script);
-        return ($base === '/' || $base === '\\') ? '' : $base;
-    }
-
-    private function render(string $view, array $data = []): void
-    {
-        extract($data, EXTR_SKIP);
-        $viewPath = BASE_PATH . '/app/Views/' . str_replace('.', '/', $view) . '.php';
-        if (!is_file($viewPath)) {
-            echo '<p>Görünüm bulunamadı.</p>';
-            return;
-        }
-        ob_start();
-        require $viewPath;
-        $content = ob_get_clean();
-        $layoutPath = BASE_PATH . '/app/Views/frontend/layouts/main.php';
-        require $layoutPath;
     }
 }

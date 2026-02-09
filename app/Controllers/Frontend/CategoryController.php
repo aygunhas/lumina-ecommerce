@@ -10,7 +10,7 @@ use PDO;
 /**
  * Mağaza: Kategori sayfası – kategorideki ürünleri listeler (sıralama, sayfalama)
  */
-class CategoryController
+class CategoryController extends FrontendBaseController
 {
     private const PER_PAGE_OPTIONS = [12, 24];
     private const SORT_OPTIONS = [
@@ -25,8 +25,7 @@ class CategoryController
     {
         $slug = $_GET['_slug'] ?? '';
         if ($slug === '') {
-            header('Location: ' . $this->baseUrl() . '/');
-            exit;
+            $this->redirect('/');
         }
         $pdo = Database::getConnection();
         $stmt = $pdo->prepare('SELECT id, name, slug, description FROM categories WHERE slug = ? AND is_active = 1 LIMIT 1');
@@ -77,27 +76,5 @@ class CategoryController
         $title = $category['name'] . ' - ' . env('APP_NAME', 'Lumina Boutique');
         $baseUrl = $this->baseUrl();
         $this->render('frontend/category/show', compact('title', 'baseUrl', 'category', 'products', 'productImages', 'sort', 'perPage', 'page', 'totalPages', 'totalRows'));
-    }
-
-    private function baseUrl(): string
-    {
-        $script = $_SERVER['SCRIPT_NAME'] ?? '';
-        $base = dirname($script);
-        return ($base === '/' || $base === '\\') ? '' : $base;
-    }
-
-    private function render(string $view, array $data = []): void
-    {
-        extract($data, EXTR_SKIP);
-        $viewPath = BASE_PATH . '/app/Views/' . str_replace('.', '/', $view) . '.php';
-        if (!is_file($viewPath)) {
-            echo '<p>Görünüm bulunamadı.</p>';
-            return;
-        }
-        ob_start();
-        require $viewPath;
-        $content = ob_get_clean();
-        $layoutPath = BASE_PATH . '/app/Views/frontend/layouts/main.php';
-        require $layoutPath;
     }
 }
