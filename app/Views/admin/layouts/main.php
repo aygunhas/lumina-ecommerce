@@ -47,7 +47,7 @@ $isActive = function ($path) use ($currentUri) {
         [x-cloak] { display: none !important; }
     </style>
 </head>
-<body class="bg-gray-50 font-sans text-gray-900" x-data="{ sidebarOpen: false }">
+<body class="bg-stone-100 font-sans text-stone-800" x-data="{ sidebarOpen: false }">
     <!-- Mobil sidebar overlay -->
     <div x-show="sidebarOpen"
          x-cloak
@@ -62,7 +62,7 @@ $isActive = function ($path) use ($currentUri) {
          aria-hidden="true"></div>
 
     <!-- SOL KOLON: SIDEBAR -->
-    <aside class="fixed inset-y-0 left-0 z-40 w-64 -translate-x-full transform bg-black text-white transition-transform duration-200 ease-in-out md:translate-x-0"
+    <aside class="fixed inset-y-0 left-0 z-40 w-64 -translate-x-full transform bg-stone-900 text-white transition-transform duration-200 ease-in-out md:translate-x-0"
            :class="{ 'translate-x-0': sidebarOpen }"
            x-show="true"
            aria-label="Panel menüsü">
@@ -75,24 +75,24 @@ $isActive = function ($path) use ($currentUri) {
             <!-- Navigasyon -->
             <nav class="flex-1 space-y-0.5 overflow-y-auto px-3 py-4">
                 <a href="<?= htmlspecialchars($baseUrl) ?>/admin"
-                   class="flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium transition-colors <?= $isActive('/admin') && $currentUri === '/admin' || $currentUri === '/admin/' ? 'bg-white/10 text-white' : 'text-gray-300 hover:bg-white/5 hover:text-white' ?>">
+                   class="flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium transition-colors <?= $isActive('/admin') && $currentUri === '/admin' || $currentUri === '/admin/' ? 'bg-white/10 text-white' : 'text-stone-300 hover:bg-white/5 hover:text-white' ?>">
                     <svg class="h-5 w-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
                     Dashboard
                 </a>
-                <a href="<?= htmlspecialchars($baseUrl) ?>/admin/orders"
-                   class="flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium transition-colors <?= $isActive('/admin/orders') ? 'bg-white/10 text-white' : 'text-gray-300 hover:bg-white/5 hover:text-white' ?>">
-                    <svg class="h-5 w-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"/></svg>
-                    Siparişler
+                <a href="<?= htmlspecialchars($baseUrl) ?>/admin/categories"
+                   class="flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium transition-colors <?= $isActive('/admin/categories') ? 'bg-white/10 text-white' : 'text-stone-300 hover:bg-white/5 hover:text-white' ?>">
+                    <svg class="h-5 w-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
+                    Kategoriler
                 </a>
                 <a href="<?= htmlspecialchars($baseUrl) ?>/admin/products"
-                   class="flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium transition-colors <?= $isActive('/admin/products') ? 'bg-white/10 text-white' : 'text-gray-300 hover:bg-white/5 hover:text-white' ?>">
+                   class="flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium transition-colors <?= $isActive('/admin/products') ? 'bg-white/10 text-white' : 'text-stone-300 hover:bg-white/5 hover:text-white' ?>">
                     <svg class="h-5 w-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"/></svg>
                     Ürünler
                 </a>
-                <a href="<?= htmlspecialchars($baseUrl) ?>/admin/categories"
-                   class="flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium transition-colors <?= $isActive('/admin/categories') ? 'bg-white/10 text-white' : 'text-gray-300 hover:bg-white/5 hover:text-white' ?>">
-                    <svg class="h-5 w-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
-                    Kategoriler
+                <a href="<?= htmlspecialchars($baseUrl) ?>/admin/orders"
+                   class="flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium transition-colors <?= $isActive('/admin/orders') ? 'bg-white/10 text-white' : 'text-stone-300 hover:bg-white/5 hover:text-white' ?>">
+                    <svg class="h-5 w-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"/></svg>
+                    Siparişler
                 </a>
                 <a href="<?= htmlspecialchars($baseUrl) ?>/admin/attributes"
                    class="flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium transition-colors <?= $isActive('/admin/attributes') ? 'bg-white/10 text-white' : 'text-gray-300 hover:bg-white/5 hover:text-white' ?>">
@@ -134,26 +134,26 @@ $isActive = function ($path) use ($currentUri) {
             <!-- Alt: Mağazaya Dön + Çıkış -->
             <div class="shrink-0 border-t border-white/10 px-3 py-4 space-y-1">
                 <a href="<?= htmlspecialchars($baseUrl) ?>/"
-                   class="flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium text-gray-300 hover:bg-white/5 hover:text-white transition-colors">
+                   class="flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium text-stone-300 hover:bg-white/5 hover:text-white transition-colors">
                     <svg class="h-5 w-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2V8a2 2 0 00-2-2h-4m-6-1l4 4m0 0l4-4m-4 4V10"/></svg>
                     Mağazaya Dön
                 </a>
                 <a href="<?= htmlspecialchars($baseUrl) ?>/admin/logout"
-                   class="flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium text-gray-300 hover:bg-white/5 hover:text-white transition-colors">
+                   class="flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium text-stone-300 hover:bg-white/5 hover:text-white transition-colors">
                     <svg class="h-5 w-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
                     Çıkış Yap
                 </a>
             </div>
         </div>
-    </aside>
+        </aside>
 
     <!-- SAĞ KOLON: İÇERİK ALANI -->
     <div class="flex min-h-screen flex-col transition-all md:pl-64">
         <!-- Header (Üst Bar) -->
-        <header class="sticky top-0 z-40 flex h-16 items-center justify-between border-b border-gray-200 bg-white px-6">
+        <header class="sticky top-0 z-40 flex h-16 items-center justify-between border-b border-stone-200 bg-[#FAFAF9] px-6">
             <button type="button"
                     @click="sidebarOpen = true"
-                    class="rounded-md p-2 text-gray-600 hover:bg-gray-100 hover:text-gray-900 md:hidden"
+                    class="rounded-md p-2 text-stone-600 hover:bg-stone-100 hover:text-stone-800 md:hidden"
                     aria-label="Menüyü aç">
                 <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
             </button>
@@ -162,7 +162,7 @@ $isActive = function ($path) use ($currentUri) {
                 <div class="relative" x-data="{ notifOpen: false }" @click.outside="notifOpen = false">
                     <button type="button"
                             @click="notifOpen = !notifOpen"
-                            class="relative rounded-md p-2 text-gray-600 hover:bg-gray-100 hover:text-gray-900"
+                            class="relative rounded-md p-2 text-stone-600 hover:bg-stone-100 hover:text-stone-800"
                             aria-label="Bildirimler"
                             aria-expanded="false"
                             :aria-expanded="notifOpen">
@@ -184,58 +184,132 @@ $isActive = function ($path) use ($currentUri) {
                          x-transition:leave="transition ease-in duration-75"
                          x-transition:leave-start="opacity-100 scale-100"
                          x-transition:leave-end="opacity-0 scale-95"
-                         class="absolute right-0 mt-2 w-80 rounded-md border border-gray-200 bg-white shadow-lg"
+                         class="absolute right-0 mt-2 w-80 rounded-md border border-stone-200 bg-[#FAFAF9] shadow-lg"
                          role="menu">
-                        <div class="flex items-center justify-between border-b border-gray-200 px-4 py-3">
-                            <span class="text-sm font-semibold text-gray-900">Bildirimler</span>
-                            <a href="<?= htmlspecialchars($baseUrl) ?>/admin/notifications?mark_all_read=1" class="text-xs text-gray-500 hover:text-gray-700">Tümünü Okundu Say</a>
+                        <div class="flex items-center justify-between border-b border-stone-200 px-4 py-3">
+                            <span class="text-sm font-semibold text-stone-800">Bildirimler</span>
+                            <a href="<?= htmlspecialchars($baseUrl) ?>/admin/notifications?mark_all_read=1" class="text-xs text-stone-500 hover:text-stone-700">Tümünü Okundu Say</a>
                         </div>
                         <div class="max-h-80 overflow-y-auto">
                             <?php if (empty($notifData['notifications'])): ?>
-                            <p class="px-4 py-6 text-center text-sm text-gray-500">Bildirim yok.</p>
+                            <p class="px-4 py-6 text-center text-sm text-stone-500">Bildirim yok.</p>
                             <?php else: ?>
                             <?php foreach ($notifData['notifications'] as $n): ?>
                             <a href="<?= !empty($n['link']) ? htmlspecialchars($baseUrl . $n['link']) : '#' ?>"
-                               class="block border-b border-gray-100 px-4 py-3 text-left transition-colors last:border-b-0 <?= !empty($n['is_read']) ? 'bg-white' : 'bg-gray-50' ?> hover:bg-gray-100">
-                                <p class="text-sm font-semibold text-gray-900"><?= htmlspecialchars($n['title'] ?? '') ?></p>
+                               class="block border-b border-stone-200 px-4 py-3 text-left transition-colors last:border-b-0 <?= !empty($n['is_read']) ? 'bg-[#FAFAF9]' : 'bg-stone-50' ?> hover:bg-stone-100">
+                                <p class="text-sm font-semibold text-stone-800"><?= htmlspecialchars($n['title'] ?? '') ?></p>
                                 <?php if (!empty($n['message'])): ?>
-                                <p class="mt-0.5 text-xs text-gray-500 line-clamp-2"><?= htmlspecialchars($n['message']) ?></p>
+                                <p class="mt-0.5 text-xs text-stone-500 line-clamp-2"><?= htmlspecialchars($n['message']) ?></p>
                                 <?php endif; ?>
                             </a>
                             <?php endforeach; ?>
                             <?php endif; ?>
                         </div>
-                        <div class="border-t border-gray-200 px-4 py-2">
+                        <div class="border-t border-stone-200 px-4 py-2">
                             <a href="<?= htmlspecialchars($baseUrl) ?>/admin/notifications"
-                               class="block rounded-md bg-gray-100 py-2 text-center text-sm font-medium text-gray-700 hover:bg-gray-200">
+                               class="block rounded-md bg-stone-100 py-2 text-center text-sm font-medium text-stone-700 hover:bg-stone-200">
                                 Tüm Bildirimleri Gör
                             </a>
                         </div>
                     </div>
                 </div>
-                <div class="flex items-center gap-2 text-sm font-medium text-gray-700">
+                <div class="flex items-center gap-2 text-sm font-medium text-stone-700">
                     <span class="truncate"><?= htmlspecialchars($adminName) ?></span>
                 </div>
             </div>
         </header>
 
         <!-- Main Content -->
-        <main class="flex-1 p-8">
-            <?php if (!empty($_SESSION['success'])): ?>
-                <div class="mb-6 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800" role="alert">
-                    <?= htmlspecialchars((string) $_SESSION['success']) ?>
-                </div>
-                <?php unset($_SESSION['success']); ?>
-            <?php endif; ?>
-            <?php if (!empty($_SESSION['error'])): ?>
-                <div class="mb-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800" role="alert">
-                    <?= htmlspecialchars((string) $_SESSION['error']) ?>
-                </div>
-                <?php unset($_SESSION['error']); ?>
-            <?php endif; ?>
-
+        <main class="flex-1 bg-stone-100 p-8">
             <?php if (isset($content)) echo $content; ?>
         </main>
     </div>
+
+    <!-- Toast Notification System -->
+    <div x-data="{
+        show: false,
+        message: '',
+        type: 'success',
+        _timer: null,
+        open(e) {
+            this.message = e.detail.message || '';
+            this.type = e.detail.type || 'success';
+            this.show = true;
+            clearTimeout(this._timer);
+            this._timer = setTimeout(() => { this.show = false; }, 4000);
+        }
+    }" @notify.window="open($event)" class="fixed bottom-6 right-6 z-[100]" aria-live="polite">
+        <div x-show="show"
+             x-cloak
+             x-transition:enter="transition ease-out duration-300"
+             x-transition:enter-start="opacity-0 transform translate-y-4"
+             x-transition:enter-end="opacity-100 transform translate-y-0"
+             x-transition:leave="transition ease-in duration-250"
+             x-transition:leave-start="opacity-100 transform translate-x-0"
+             x-transition:leave-end="opacity-0 transform translate-x-full"
+             class="flex items-center gap-3 rounded-lg border shadow-lg min-w-[280px] max-w-[400px] px-4 py-3"
+             :class="{
+                 'bg-emerald-50 border-emerald-200 text-emerald-800': type === 'success',
+                 'bg-rose-50 border-rose-200 text-rose-800': type === 'error',
+                 'bg-amber-50 border-amber-200 text-amber-800': type === 'warning',
+                 'bg-stone-50 border-stone-200 text-stone-800': type === 'info'
+             }">
+            <span class="flex-shrink-0" aria-hidden="true">
+                <template x-if="type === 'success'">
+                    <svg class="h-5 w-5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                    </svg>
+                </template>
+                <template x-if="type === 'error'">
+                    <svg class="h-5 w-5 text-rose-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                </template>
+                <template x-if="type === 'warning'">
+                    <svg class="h-5 w-5 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                    </svg>
+                </template>
+                <template x-if="type === 'info'">
+                    <svg class="h-5 w-5 text-stone-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                    </svg>
+                </template>
+            </span>
+            <p x-text="message" class="text-sm font-medium flex-1"></p>
+            <button @click="show = false" class="flex-shrink-0 text-stone-400 hover:text-stone-600">
+                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                </svg>
+            </button>
+        </div>
+    </div>
+
+    <?php
+    // Session mesajlarını toast'a çevir
+    if (!empty($_SESSION['success'])) {
+        $toastMsg = $_SESSION['success'];
+        unset($_SESSION['success']);
+    ?>
+    <script>
+    document.addEventListener('alpine:initialized', function() {
+        window.dispatchEvent(new CustomEvent('notify', { 
+            detail: { message: <?= json_encode($toastMsg, JSON_UNESCAPED_UNICODE) ?>, type: 'success' } 
+        }));
+    });
+    </script>
+    <?php } ?>
+    <?php if (!empty($_SESSION['error'])) {
+        $toastMsg = $_SESSION['error'];
+        unset($_SESSION['error']);
+    ?>
+    <script>
+    document.addEventListener('alpine:initialized', function() {
+        window.dispatchEvent(new CustomEvent('notify', { 
+            detail: { message: <?= json_encode($toastMsg, JSON_UNESCAPED_UNICODE) ?>, type: 'error' } 
+        }));
+    });
+    </script>
+    <?php } ?>
 </body>
 </html>

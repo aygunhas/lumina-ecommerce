@@ -33,19 +33,26 @@ $categoryImages = [$imgYeniSezon, $imgKadin, $imgErkek, $imgAksesuar, $imgSale];
                 $slug = $cat['slug'] ?? '';
                 $name = $cat['name'] ?? '';
                 $url = $slug ? ($baseUrl . '/kategori/' . htmlspecialchars($slug)) : '#';
-                $img = $categoryImages[$i % count($categoryImages)] ?? $categoryImages[0];
+                // Kategori resmi varsa kullan, yoksa fallback
+                $catImage = !empty($cat['image']) ? ($baseUrl . $cat['image']) : ($categoryImages[$i % count($categoryImages)] ?? $categoryImages[0]);
                 $label = mb_strtoupper($name);
+                $heroText = $cat['home_hero_text'] ?? '';
                 $isFirst = ($i === 0);
                 ?>
                 <a href="<?= htmlspecialchars($url) ?>" class="relative group overflow-hidden w-full <?= $isFirst ? 'col-span-2 h-[300px] md:col-span-2 md:row-span-2 md:h-auto' : 'col-span-1 h-[200px] md:col-span-1 md:row-span-1 md:h-auto' ?> block">
-                    <img src="<?= htmlspecialchars($img) ?>" alt="<?= htmlspecialchars($name) ?>" class="object-cover w-full h-full transition duration-700 group-hover:scale-105" />
+                    <img src="<?= htmlspecialchars($catImage) ?>" alt="<?= htmlspecialchars($name) ?>" class="object-cover w-full h-full transition duration-700 group-hover:scale-105" />
                     <div class="absolute inset-0 bg-black/20 group-hover:bg-black/30 transition"></div>
                     <div class="absolute bottom-4 left-4 md:bottom-6 md:left-6">
                         <?php if ($isFirst): ?>
                             <span class="font-display tracking-widest text-white uppercase text-3xl md:text-4xl block group-hover:-translate-y-1 transition"><?= htmlspecialchars($label) ?></span>
-                            <span class="font-display tracking-widest text-white/90 uppercase text-sm mt-1 block group-hover:-translate-y-1 transition">Koleksiyonu Keşfet</span>
+                            <?php if (!empty($heroText)): ?>
+                                <span class="font-display tracking-widest text-white/90 uppercase text-sm mt-1 block group-hover:-translate-y-1 transition"><?= htmlspecialchars($heroText) ?></span>
+                            <?php endif; ?>
                         <?php else: ?>
                             <span class="font-display tracking-widest text-white uppercase text-2xl md:text-3xl group-hover:-translate-y-1 transition"><?= htmlspecialchars($label) ?></span>
+                            <?php if (!empty($heroText)): ?>
+                                <span class="font-display tracking-widest text-white/90 uppercase text-xs mt-1 block group-hover:-translate-y-1 transition"><?= htmlspecialchars($heroText) ?></span>
+                            <?php endif; ?>
                         <?php endif; ?>
                     </div>
                 </a>

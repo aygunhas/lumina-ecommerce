@@ -16,19 +16,23 @@ class CategoriesController extends AdminBaseController
     {
         $pdo = Database::getConnection();
         $stmt = $pdo->query('
-            SELECT c.id, c.name, c.slug, c.sort_order, c.is_active, c.created_at,
-                   p.name AS parent_name
+            SELECT c.*, p.name AS parent_name
             FROM categories c
             LEFT JOIN categories p ON c.parent_id = p.id
             ORDER BY c.sort_order ASC, c.name ASC
         ');
         $categories = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
+        // Üst kategori seçimi için tüm kategorileri al
+        $parentsStmt = $pdo->query('SELECT id, name FROM categories ORDER BY name ASC');
+        $parents = $parentsStmt->fetchAll(PDO::FETCH_ASSOC);
+
         $baseUrl = $this->baseUrl();
         $this->render('admin/categories/index', [
             'pageTitle' => 'Kategoriler',
             'baseUrl' => $baseUrl,
             'categories' => $categories,
+            'parents' => $parents,
         ]);
     }
 
@@ -38,28 +42,22 @@ class CategoriesController extends AdminBaseController
             $this->store();
             return;
         }
-        $pdo = Database::getConnection();
-        $parents = $pdo->query('SELECT id, name FROM categories ORDER BY name ASC')->fetchAll(PDO::FETCH_ASSOC);
-        $baseUrl = $this->baseUrl();
-        $errors = $_SESSION['category_errors'] ?? [];
-        $old = $_SESSION['category_old'] ?? [];
-        unset($_SESSION['category_errors'], $_SESSION['category_old']);
-        $this->render('admin/categories/create', [
-            'pageTitle' => 'Yeni kategori',
-            'baseUrl' => $baseUrl,
-            'parents' => $parents,
-            'errors' => $errors,
-            'old' => $old,
-        ]);
+        // GET ise index'e yönlendir (modal açılacak)
+        header('Location: ' . $this->baseUrl() . '/admin/categories');
+        exit;
     }
 
     private function store(): void
     {
         $name = trim($_POST['name'] ?? '');
+        $slug = trim($_POST['slug'] ?? '');
         $parentId = isset($_POST['parent_id']) && $_POST['parent_id'] !== '' ? (int) $_POST['parent_id'] : null;
         $description = trim($_POST['description'] ?? '');
         $sortOrder = (int) ($_POST['sort_order'] ?? 0);
         $isActive = isset($_POST['is_active']) ? 1 : 0;
+        $homeHeroText = trim($_POST['home_hero_text'] ?? '');
+        $metaTitle = trim($_POST['meta_title'] ?? '');
+        $metaDescription = trim($_POST['meta_description'] ?? '');
 
         $errors = [];
         if ($name === '') {
@@ -70,11 +68,32 @@ class CategoriesController extends AdminBaseController
         if (!empty($errors)) {
             $_SESSION['category_errors'] = $errors;
             $_SESSION['category_old'] = $_POST;
-            header('Location: ' . $baseUrl . '/admin/categories/create');
+            header('Location: ' . $baseUrl . '/admin/categories');
             exit;
         }
 
-        $slug = $this->slugify($name);
+        // Slug boşsa otomatik oluştur
+        if ($slug === '') {
+            $slug = $this->slugify($name);
+        } else {
+            $slug = $this->slugify($slug);
+        }
+
+        // Resim yükleme
+        $imagePath = null;
+        if (!empty($_FILES['image']['name']) && $_FILES['image']['error'] === UPLOAD_ERR_OK) {
+            $uploadDir = BASE_PATH . '/public/uploads/categories/';
+            if (!is_dir($uploadDir)) {
+                mkdir($uploadDir, 0755, true);
+            }
+            $ext = pathinfo($_FILES['image']['name'], PATHINFO_EXTENSION);
+            $fileName = 'cat_' . time() . '_' . uniqid() . '.' . $ext;
+            $targetPath = $uploadDir . $fileName;
+            if (move_uploaded_file($_FILES['image']['tmp_name'], $targetPath)) {
+                $imagePath = '/uploads/categories/' . $fileName;
+            }
+        }
+
         $pdo = Database::getConnection();
         $stmt = $pdo->prepare('SELECT id FROM categories WHERE slug = ? LIMIT 1');
         $stmt->execute([$slug]);
@@ -82,10 +101,19 @@ class CategoriesController extends AdminBaseController
             $slug = $slug . '-' . time();
         }
         $stmt = $pdo->prepare('
-            INSERT INTO categories (parent_id, name, slug, description, sort_order, is_active, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, NOW(), NOW())
+            INSERT INTO categories (parent_id, name, slug, description, image, home_hero_text, meta_title, meta_description, sort_order, is_active, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
         ');
-        $stmt->execute([$parentId, $name, $slug, $description ?: null, $sortOrder, $isActive]);
+        $stmt->execute([$parentId, $name, $slug, $description ?: null, $imagePath, $homeHeroText ?: null, $metaTitle ?: null, $metaDescription ?: null, $sortOrder, $isActive]);
+        $_SESSION['success'] = 'Kategori başarıyla eklendi.';
+        
+        // AJAX isteği ise JSON döndür
+        if (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest') {
+            header('Content-Type: application/json; charset=utf-8');
+            echo json_encode(['success' => true, 'message' => 'Kategori başarıyla eklendi.']);
+            exit;
+        }
+        
         header('Location: ' . $baseUrl . '/admin/categories');
         exit;
     }
@@ -109,24 +137,20 @@ class CategoriesController extends AdminBaseController
             $this->update($id);
             return;
         }
+        // GET ise JSON döndür (AJAX için)
         $parents = $pdo->query('SELECT id, name FROM categories WHERE id != ' . (int) $id . ' ORDER BY name ASC')->fetchAll(PDO::FETCH_ASSOC);
-        $baseUrl = $this->baseUrl();
-        $errors = $_SESSION['category_errors'] ?? [];
-        $old = $_SESSION['category_old'] ?? [];
-        unset($_SESSION['category_errors'], $_SESSION['category_old']);
-        $this->render('admin/categories/edit', [
-            'pageTitle' => 'Kategori düzenle',
-            'baseUrl' => $baseUrl,
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode([
             'category' => $category,
             'parents' => $parents,
-            'errors' => $errors,
-            'old' => $old,
-        ]);
+        ], JSON_UNESCAPED_UNICODE);
+        exit;
     }
 
     private function update(int $id): void
     {
         $name = trim($_POST['name'] ?? '');
+        $slug = trim($_POST['slug'] ?? '');
         $parentId = isset($_POST['parent_id']) && $_POST['parent_id'] !== '' ? (int) $_POST['parent_id'] : null;
         if ($parentId === $id) {
             $parentId = null;
@@ -134,6 +158,9 @@ class CategoriesController extends AdminBaseController
         $description = trim($_POST['description'] ?? '');
         $sortOrder = (int) ($_POST['sort_order'] ?? 0);
         $isActive = isset($_POST['is_active']) ? 1 : 0;
+        $homeHeroText = trim($_POST['home_hero_text'] ?? '');
+        $metaTitle = trim($_POST['meta_title'] ?? '');
+        $metaDescription = trim($_POST['meta_description'] ?? '');
 
         $errors = [];
         if ($name === '') {
@@ -142,24 +169,71 @@ class CategoriesController extends AdminBaseController
 
         $baseUrl = $this->baseUrl();
         if (!empty($errors)) {
+            // AJAX isteği ise JSON döndür
+            if (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest') {
+                header('Content-Type: application/json; charset=utf-8');
+                http_response_code(400);
+                echo json_encode(['success' => false, 'errors' => $errors]);
+                exit;
+            }
             $_SESSION['category_errors'] = $errors;
             $_SESSION['category_old'] = $_POST;
-            header('Location: ' . $baseUrl . '/admin/categories/edit?id=' . $id);
+            header('Location: ' . $baseUrl . '/admin/categories');
             exit;
         }
 
-        $slug = $this->slugify($name);
+        // Slug boşsa otomatik oluştur
+        if ($slug === '') {
+            $slug = $this->slugify($name);
+        } else {
+            $slug = $this->slugify($slug);
+        }
+
         $pdo = Database::getConnection();
+        
+        // Mevcut kategoriyi al
+        $stmt = $pdo->prepare('SELECT image FROM categories WHERE id = ? LIMIT 1');
+        $stmt->execute([$id]);
+        $current = $stmt->fetch(PDO::FETCH_ASSOC);
+        $imagePath = $current['image'] ?? null;
+
+        // Resim yükleme
+        if (!empty($_FILES['image']['name']) && $_FILES['image']['error'] === UPLOAD_ERR_OK) {
+            $uploadDir = BASE_PATH . '/public/uploads/categories/';
+            if (!is_dir($uploadDir)) {
+                mkdir($uploadDir, 0755, true);
+            }
+            // Eski resmi sil
+            if ($imagePath && file_exists(BASE_PATH . '/public' . $imagePath)) {
+                @unlink(BASE_PATH . '/public' . $imagePath);
+            }
+            $ext = pathinfo($_FILES['image']['name'], PATHINFO_EXTENSION);
+            $fileName = 'cat_' . time() . '_' . uniqid() . '.' . $ext;
+            $targetPath = $uploadDir . $fileName;
+            if (move_uploaded_file($_FILES['image']['tmp_name'], $targetPath)) {
+                $imagePath = '/uploads/categories/' . $fileName;
+            }
+        }
+
         $stmt = $pdo->prepare('SELECT id FROM categories WHERE slug = ? AND id != ? LIMIT 1');
         $stmt->execute([$slug, $id]);
         if ($stmt->fetch()) {
             $slug = $slug . '-' . $id;
         }
         $stmt = $pdo->prepare('
-            UPDATE categories SET parent_id = ?, name = ?, slug = ?, description = ?, sort_order = ?, is_active = ?, updated_at = NOW()
+            UPDATE categories SET parent_id = ?, name = ?, slug = ?, description = ?, image = ?, home_hero_text = ?, meta_title = ?, meta_description = ?, sort_order = ?, is_active = ?, updated_at = NOW()
             WHERE id = ?
         ');
-        $stmt->execute([$parentId, $name, $slug, $description ?: null, $sortOrder, $isActive, $id]);
+        $stmt->execute([$parentId, $name, $slug, $description ?: null, $imagePath, $homeHeroText ?: null, $metaTitle ?: null, $metaDescription ?: null, $sortOrder, $isActive, $id]);
+        $_SESSION['success'] = 'Kategori başarıyla güncellendi.';
+        
+        // AJAX isteği ise JSON döndür
+        if (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest') {
+            header('Content-Type: application/json; charset=utf-8');
+            echo json_encode(['success' => true, 'message' => 'Kategori başarıyla güncellendi.']);
+            exit;
+        }
+        
         header('Location: ' . $baseUrl . '/admin/categories');
         exit;
     }
@@ -179,19 +253,47 @@ class CategoriesController extends AdminBaseController
             header('Location: ' . $this->baseUrl() . '/admin/categories');
             exit;
         }
+
+        // Alt kategori kontrolü
+        $childStmt = $pdo->prepare('SELECT COUNT(*) as count FROM categories WHERE parent_id = ?');
+        $childStmt->execute([$id]);
+        $childCount = $childStmt->fetch(PDO::FETCH_ASSOC)['count'] ?? 0;
+
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            if ($childCount > 0) {
+                $_SESSION['error'] = 'Bu kategorinin alt kategorileri var. Önce alt kategorileri silin.';
+                header('Location: ' . $this->baseUrl() . '/admin/categories');
+                exit;
+            }
+            // Resmi sil
+            $imgStmt = $pdo->prepare('SELECT image FROM categories WHERE id = ? LIMIT 1');
+            $imgStmt->execute([$id]);
+            $img = $imgStmt->fetch(PDO::FETCH_ASSOC);
+            if ($img && $img['image'] && file_exists(BASE_PATH . '/public' . $img['image'])) {
+                @unlink(BASE_PATH . '/public' . $img['image']);
+            }
             $pdo->prepare('UPDATE categories SET parent_id = NULL WHERE parent_id = ?')->execute([$id]);
             $pdo->prepare('UPDATE products SET category_id = NULL WHERE category_id = ?')->execute([$id]);
             $pdo->prepare('DELETE FROM categories WHERE id = ?')->execute([$id]);
+            $_SESSION['success'] = 'Kategori başarıyla silindi.';
+            
+            // AJAX isteği ise JSON döndür
+            if (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest') {
+                header('Content-Type: application/json; charset=utf-8');
+                echo json_encode(['success' => true, 'message' => 'Kategori başarıyla silindi.']);
+                exit;
+            }
+            
             header('Location: ' . $this->baseUrl() . '/admin/categories');
             exit;
         }
-        $baseUrl = $this->baseUrl();
-        $this->render('admin/categories/delete', [
-            'pageTitle' => 'Kategori sil',
-            'baseUrl' => $baseUrl,
+        // GET ise JSON döndür
+        header('Content-Type: application/json');
+        echo json_encode([
             'category' => $category,
+            'has_children' => $childCount > 0,
         ]);
+        exit;
     }
 
     private function slugify(string $text): string

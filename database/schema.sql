@@ -138,6 +138,7 @@ CREATE TABLE IF NOT EXISTS `categories` (
   `slug` varchar(100) NOT NULL,
   `description` text,
   `image` varchar(255) DEFAULT NULL,
+  `home_hero_text` varchar(255) DEFAULT NULL COMMENT 'Ana sayfa kategori containerında gösterilecek metin (örn: Koleksiyonu Keşfet)',
   `meta_title` varchar(255) DEFAULT NULL,
   `meta_description` varchar(500) DEFAULT NULL,
   `sort_order` smallint NOT NULL DEFAULT 0,
@@ -249,10 +250,12 @@ CREATE TABLE IF NOT EXISTS `product_images` (
   `product_id` int unsigned NOT NULL,
   `path` varchar(255) NOT NULL,
   `alt` varchar(255) DEFAULT NULL,
+  `is_main` tinyint(1) NOT NULL DEFAULT 0 COMMENT 'Ana görsel (kapak)',
   `sort_order` smallint NOT NULL DEFAULT 0,
   `created_at` timestamp NULL DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `product_id` (`product_id`),
+  KEY `is_main` (`is_main`),
   CONSTRAINT `product_images_product` FOREIGN KEY (`product_id`) REFERENCES `products` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -674,3 +677,13 @@ SET FOREIGN_KEY_CHECKS = 1;
 -- email_templates → A25, B38 e-posta şablonları
 -- contact_messages → A35 iletişim formu
 -- admin_notifications → Admin bildirim sistemi (yeni sipariş, stok uyarısı, yeni üye vb.)
+
+-- =============================================================================
+-- Performans İyileştirmeleri (Dashboard için indeksler)
+-- =============================================================================
+-- NOT: Bu ALTER TABLE komutları mevcut veritabanında manuel çalıştırılmalıdır.
+-- İndeks zaten varsa hata verebilir, bu durumda güvenle atlayabilirsiniz.
+-- 
+-- Bu indeksler dashboard sorgularını hızlandırır (büyük veri setlerinde önemli)
+-- ALTER TABLE `orders` ADD INDEX `idx_created_status` (`created_at`, `status`);
+-- ALTER TABLE `order_items` ADD INDEX `idx_product_quantity` (`product_id`, `quantity`);

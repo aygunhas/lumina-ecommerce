@@ -27,7 +27,25 @@ if (!$bedenId) {
     $bedenId = (int) $pdo->lastInsertId();
     echo "Beden özelliği eklendi (id: {$bedenId}).\n";
 }
-$bedenValues = [['XS', null], ['S', null], ['M', null], ['L', null], ['XL', null]];
+$bedenValues = [
+    ['XXS', null], 
+    ['XS', null], 
+    ['S', null], 
+    ['M', null], 
+    ['L', null], 
+    ['XL', null], 
+    ['XXL', null], 
+    ['XXXL', null],
+    ['36', null],
+    ['38', null],
+    ['40', null],
+    ['42', null],
+    ['44', null],
+    ['46', null],
+    ['48', null],
+    ['50', null],
+    ['52', null],
+];
 foreach ($bedenValues as $i => $v) {
     $stmt = $pdo->prepare('SELECT id FROM attribute_values WHERE attribute_id = ? AND value = ? LIMIT 1');
     $stmt->execute([$bedenId, $v[0]]);
@@ -53,6 +71,24 @@ $renkValues = [
     ['Beyaz', '#fafafa'],
     ['Gri', '#757575'],
     ['Lacivert', '#0d47a1'],
+    ['Yeşil', '#2e7d32'],
+    ['Sarı', '#f9a825'],
+    ['Turuncu', '#ef6c00'],
+    ['Pembe', '#c2185b'],
+    ['Mor', '#6a1b9a'],
+    ['Kahverengi', '#5d4037'],
+    ['Bej', '#d7ccc8'],
+    ['Krem', '#fff9e6'],
+    ['Bordo', '#880e4f'],
+    ['Turkuaz', '#00897b'],
+    ['Lavanta', '#9575cd'],
+    ['Füme', '#78909c'],
+    ['Haki', '#827717'],
+    ['Navy', '#0d47a1'],
+    ['Koyu Gri', '#424242'],
+    ['Açık Gri', '#bdbdbd'],
+    ['Altın', '#ffa000'],
+    ['Gümüş', '#9e9e9e'],
 ];
 foreach ($renkValues as $i => $v) {
     $stmt = $pdo->prepare('SELECT id FROM attribute_values WHERE attribute_id = ? AND value = ? LIMIT 1');

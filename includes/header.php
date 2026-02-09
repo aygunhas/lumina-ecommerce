@@ -7,11 +7,28 @@ $menuItems = [];
 if (class_exists(\App\Config\Database::class)) {
     try {
         $pdo = \App\Config\Database::getConnection();
-        $topCategories = $pdo->query("SELECT id, name, slug FROM categories WHERE (parent_id IS NULL OR parent_id = 0) AND is_active = 1 ORDER BY sort_order ASC, name ASC")->fetchAll(PDO::FETCH_ASSOC);
-        $allCategories = $pdo->query("SELECT id, name, slug, parent_id FROM categories WHERE is_active = 1 ORDER BY parent_id ASC, sort_order ASC, name ASC")->fetchAll(PDO::FETCH_ASSOC);
+        // Ana kategorileri çek (parent_id NULL veya 0 olanlar)
+        $topCategories = $pdo->query("
+            SELECT id, name, slug 
+            FROM categories 
+            WHERE (parent_id IS NULL OR parent_id = 0) 
+            AND is_active = 1 
+            ORDER BY sort_order ASC, name ASC
+        ")->fetchAll(PDO::FETCH_ASSOC);
+        
+        // Tüm aktif kategorileri çek (alt kategorileri bulmak için)
+        $allCategories = $pdo->query("
+            SELECT id, name, slug, parent_id 
+            FROM categories 
+            WHERE is_active = 1 
+            ORDER BY parent_id ASC, sort_order ASC, name ASC
+        ")->fetchAll(PDO::FETCH_ASSOC);
+        
         foreach ($topCategories as $top) {
+            // Bu ana kategorinin alt kategorilerini bul
             $children = array_values(array_filter($allCategories, function ($c) use ($top) {
-                return (int) ($c['parent_id'] ?? 0) === (int) $top['id'];
+                $parentId = isset($c['parent_id']) ? (int) $c['parent_id'] : 0;
+                return $parentId === (int) $top['id'];
             }));
             $slug = strtolower($top['slug'] ?? '');
             $item = [
@@ -82,9 +99,22 @@ if (empty($menuItems)) {
                                 <a href="<?= $baseUrl ?>/<?= htmlspecialchars($item['link']) ?>" class="<?= $linkClass ?> flex items-center gap-1">
                                     <?= htmlspecialchars($item['label']) ?>
                                 </a>
-                                <div x-show="open" x-cloak x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0 -translate-y-1" x-transition:enter-end="opacity-100 translate-y-0" x-transition:leave="transition ease-in duration-150" x-transition:leave-start="opacity-100 translate-y-0" x-transition:leave-end="opacity-0 -translate-y-1" class="hidden absolute top-full left-0 w-48 bg-white border border-gray-100 shadow-lg py-4 z-50" @click.outside="open = false">
+                                <div x-show="open" 
+                                     x-cloak
+                                     x-transition:enter="transition ease-out duration-200" 
+                                     x-transition:enter-start="opacity-0 -translate-y-1" 
+                                     x-transition:enter-end="opacity-100 translate-y-0" 
+                                     x-transition:leave="transition ease-in duration-150" 
+                                     x-transition:leave-start="opacity-100 translate-y-0" 
+                                     x-transition:leave-end="opacity-0 -translate-y-1" 
+                                     class="absolute top-full left-0 w-48 bg-white border border-gray-100 shadow-lg py-4 z-50 mt-1"
+                                     style="display: none;"
+                                     @click.outside="open = false">
                                     <?php foreach ($item['submenu'] as $sub): ?>
-                                        <a href="<?= $baseUrl ?>/<?= htmlspecialchars($sub['link']) ?>" class="block px-6 py-2 text-[10px] text-gray-500 hover:text-black tracking-widest uppercase transition"><?= htmlspecialchars($sub['label']) ?></a>
+                                        <a href="<?= $baseUrl ?>/<?= htmlspecialchars($sub['link']) ?>" 
+                                           class="block px-6 py-2 text-[10px] text-gray-500 hover:text-black tracking-widest uppercase transition">
+                                            <?= htmlspecialchars($sub['label']) ?>
+                                        </a>
                                     <?php endforeach; ?>
                                 </div>
                             </div>
