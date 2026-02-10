@@ -1,0 +1,12 @@
+{
+  "name": "lumina-ecommerce",
+  "version": "1.0.0",
+  "description": "Lumina Boutique E-Commerce Platform",
+  "scripts": {
+    "build:css": "tailwindcss -i ./resources/css/input.css -o ./public/assets/css/main.css --minify",
+    "watch:css": "tailwindcss -i ./resources/css/input.css -o ./public/assets/css/main.css --watch"
+  },
+  "devDependencies": {
+    "tailwindcss": "^3.4.0"
+  }
+}

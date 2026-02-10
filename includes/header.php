@@ -2,6 +2,18 @@
 $baseUrl = $baseUrl ?? '';
 $cartCount = !empty($_SESSION['cart']) ? array_sum($_SESSION['cart']) : 0;
 $isLoggedIn = !empty($_SESSION['user_id']);
+$wishlistCount = 0;
+if ($isLoggedIn) {
+    try {
+        $pdo = \App\Config\Database::getConnection();
+        $userId = (int) $_SESSION['user_id'];
+        $stmt = $pdo->prepare('SELECT COUNT(*) FROM wishlists WHERE user_id = ?');
+        $stmt->execute([$userId]);
+        $wishlistCount = (int) $stmt->fetchColumn();
+    } catch (Throwable $e) {
+        $wishlistCount = 0;
+    }
+}
 
 $menuItems = [];
 if (class_exists(\App\Config\Database::class)) {
@@ -165,6 +177,29 @@ if (empty($menuItems)) {
                             <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998-0.059A7.5 7.5 0 0 1 4.5 20.118Z" />
                         </svg>
                     </a>
+                <?php endif; ?>
+                <?php if ($isLoggedIn): ?>
+                    <div x-data="{ 
+                        wishlistCount: <?= $wishlistCount ?>, 
+                        badgePulse: false,
+                        iconBounce: false
+                    }" 
+                    @wishlist-updated.window="wishlistCount = $event.detail.count; badgePulse = true; iconBounce = true; setTimeout(() => badgePulse = false, 400); setTimeout(() => iconBounce = false, 600)"
+                    @wishlist-count-updated.window="wishlistCount = $event.detail.count; badgePulse = true; setTimeout(() => badgePulse = false, 400)">
+                        <a href="<?= $baseUrl ?>/hesabim?tab=favorites" class="relative text-primary hover:opacity-70 transition block cursor-pointer" aria-label="Favorilerim">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6 transition-all duration-300"
+                                 :class="{ 'animate-bounce scale-125': iconBounce }"
+                                 style="transform-origin: center;">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733-.715-1.607-2.377-2.733-4.313-2.733C5.1 3.75 3 5.765 3 8.25c0 7.22 9 12 9 12s9-4.78 9-12Z" />
+                            </svg>
+                            <span x-show="wishlistCount > 0"
+                                  x-cloak
+                                  class="absolute -top-1 -right-2 bg-black text-white text-[9px] min-w-4 h-4 px-1 flex items-center justify-center rounded-full font-medium transition-transform duration-150 origin-center"
+                                  :class="{ 'scale-125': badgePulse }">
+                                <span x-text="wishlistCount > 99 ? '99+' : wishlistCount"></span>
+                            </span>
+                        </a>
+                    </div>
                 <?php endif; ?>
                 <div x-data="{ cartCount: <?= (int) ($cartCount ?? 0) ?>, badgePulse: false }" @cart-updated.window="cartCount++; badgePulse = true; setTimeout(() => badgePulse = false, 400)" @cart-count-updated.window="cartCount = $event.detail.count; badgePulse = true; setTimeout(() => badgePulse = false, 400)">
                     <a href="<?= $baseUrl ?>/sepet" @click.prevent="$dispatch('cart-open')" class="relative text-primary hover:opacity-70 transition block cursor-pointer" aria-label="Sepet (çekmeceyi aç)">

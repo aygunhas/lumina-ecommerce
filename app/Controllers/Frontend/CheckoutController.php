@@ -6,30 +6,18 @@ namespace App\Controllers\Frontend;
 
 use App\Config\Database;
 use App\Helpers\Settings;
+use App\Models\Address;
+use App\Models\Coupon;
+use App\Models\Order;
+use App\Models\User;
+use App\Services\CartService;
 use PDO;
 
 /**
  * Mağaza: Ödeme formu ve sipariş oluşturma
  */
-class CheckoutController
+class CheckoutController extends FrontendBaseController
 {
-    private function parseCartKey(string $key): array
-    {
-        if (strpos($key, '_v') !== false) {
-            $parts = explode('_v', $key, 2);
-            if (count($parts) === 2 && $parts[0] !== '' && preg_match('/^p\d+$/', $parts[0]) && is_numeric($parts[1])) {
-                return ['product_id' => (int) ltrim($parts[0], 'p'), 'variant_id' => (int) $parts[1], 'size' => null];
-            }
-        }
-        if (preg_match('/^p(\d+)_s_(.+)$/', $key, $m)) {
-            return ['product_id' => (int) $m[1], 'variant_id' => null, 'size' => $m[2]];
-        }
-        if (preg_match('/^p?\d+$/', $key)) {
-            $id = (int) ltrim($key, 'p');
-            return ['product_id' => $id, 'variant_id' => null, 'size' => null];
-        }
-        return ['product_id' => 0, 'variant_id' => null, 'size' => null];
-    }
 
     private static function getShippingCost(float $subtotal): float
     {
@@ -42,41 +30,9 @@ class CheckoutController
     }
 
     /** Kupon doğrula; geçerliyse [coupon row, discountAmount] döner, değilse null */
-    private static function validateCoupon(PDO $pdo, string $code, float $subtotal): ?array
+    private static function validateCoupon(string $code, float $subtotal): ?array
     {
-        $code = strtoupper(trim($code));
-        if ($code === '') {
-            return null;
-        }
-        $stmt = $pdo->prepare('SELECT * FROM coupons WHERE code = ? AND is_active = 1 LIMIT 1');
-        $stmt->execute([$code]);
-        $coupon = $stmt->fetch(PDO::FETCH_ASSOC);
-        if (!$coupon) {
-            return null;
-        }
-        $now = date('Y-m-d H:i:s');
-        if ($coupon['starts_at'] !== null && $coupon['starts_at'] > $now) {
-            return null;
-        }
-        if ($coupon['ends_at'] !== null && $coupon['ends_at'] < $now) {
-            return null;
-        }
-        $minOrder = $coupon['min_order_amount'] !== null ? (float) $coupon['min_order_amount'] : 0;
-        if ($subtotal < $minOrder) {
-            return null;
-        }
-        $maxUse = $coupon['max_use_count'];
-        if ($maxUse !== null && (int) $coupon['used_count'] >= (int) $maxUse) {
-            return null;
-        }
-        $value = (float) $coupon['value'];
-        if ($coupon['type'] === 'percent') {
-            $discount = round($subtotal * $value / 100, 2);
-        } else {
-            $discount = min($value, $subtotal);
-        }
-        $discount = max(0, $discount);
-        return ['coupon' => $coupon, 'discount' => $discount];
+        return Coupon::validate($code, $subtotal);
     }
 
     public function index(): void
@@ -85,53 +41,15 @@ class CheckoutController
             $this->store();
             return;
         }
-        $cart = $_SESSION['cart'] ?? [];
-        if (empty($cart)) {
-            header('Location: ' . $this->baseUrl() . '/sepet');
-            exit;
-        }
-        $pdo = Database::getConnection();
-        $items = [];
-        $subtotal = 0.0;
-        foreach ($cart as $key => $qty) {
-            $qty = (int) $qty;
-            if ($qty < 1) continue;
-            $parsed = $this->parseCartKey((string) $key);
-            $productId = $parsed['product_id'];
-            $variantId = $parsed['variant_id'];
-            if ($productId < 1) continue;
-            if ($variantId !== null && $variantId > 0) {
-                $stmt = $pdo->prepare('SELECT pv.id AS variant_id, pv.product_id, pv.sku, pv.stock, pv.price, pv.sale_price, p.name FROM product_variants pv INNER JOIN products p ON pv.product_id = p.id WHERE pv.id = ? AND pv.product_id = ? AND p.is_active = 1 LIMIT 1');
-                $stmt->execute([$variantId, $productId]);
-                $row = $stmt->fetch(PDO::FETCH_ASSOC);
-                if (!$row) continue;
-                $stmt = $pdo->prepare('SELECT av.value FROM product_variant_attribute_values pvav INNER JOIN attribute_values av ON pvav.attribute_value_id = av.id WHERE pvav.variant_id = ? ORDER BY av.sort_order');
-                $stmt->execute([$variantId]);
-                $row['attributes_summary'] = implode(', ', array_column($stmt->fetchAll(PDO::FETCH_ASSOC), 'value'));
-            } else {
-                $stmt = $pdo->prepare('SELECT id AS product_id, name, sku, price, sale_price, stock FROM products WHERE id = ? AND is_active = 1 LIMIT 1');
-                $stmt->execute([$productId]);
-                $row = $stmt->fetch(PDO::FETCH_ASSOC);
-                if (!$row) continue;
-                $row['variant_id'] = null;
-                $row['attributes_summary'] = !empty($parsed['size']) ? 'Beden: ' . $parsed['size'] : null;
-            }
-            $price = $row['sale_price'] !== null && (float) $row['sale_price'] > 0 ? (float) $row['sale_price'] : (float) $row['price'];
-            $stock = (int) ($row['stock'] ?? 0);
-            $row['quantity'] = $stock > 0 ? min($qty, $stock) : $qty;
-            $row['price'] = $price;
-            $row['total'] = $row['price'] * $row['quantity'];
-            $row['id'] = (int) $row['product_id'];
-            $stmtImg = $pdo->prepare('SELECT path FROM product_images WHERE product_id = ? ORDER BY sort_order ASC, id ASC LIMIT 1');
-            $stmtImg->execute([$productId]);
-            $row['image_path'] = $stmtImg->fetchColumn() ?: null;
-            $subtotal += $row['total'];
-            $items[] = $row;
-        }
+        $cartResult = CartService::getItems();
+        $items = $cartResult['items'];
+        $subtotal = $cartResult['subtotal'];
+        
         if (empty($items)) {
-            header('Location: ' . $this->baseUrl() . '/sepet');
-            exit;
+            $this->redirect('/sepet');
         }
+        
+        $pdo = Database::getConnection();
         $shippingCost = self::getShippingCost($subtotal);
         $errors = $_SESSION['checkout_errors'] ?? [];
         $old = $_SESSION['checkout_old'] ?? [];
@@ -140,7 +58,7 @@ class CheckoutController
         $discountAmount = 0.0;
         $appliedCoupon = null;
         if ($couponCode !== '') {
-            $valid = self::validateCoupon($pdo, $couponCode, $subtotal);
+            $valid = self::validateCoupon($couponCode, $subtotal);
             if ($valid !== null) {
                 $discountAmount = $valid['discount'];
                 $c = $valid['coupon'];
@@ -165,16 +83,12 @@ class CheckoutController
         $userName = '';
         $userPhone = '';
         if ($userId > 0) {
-            $stmt = $pdo->prepare('SELECT id, title, first_name, last_name, phone, city, district, address_line, postal_code, is_default FROM addresses WHERE user_id = ? ORDER BY is_default DESC, id ASC');
-            $stmt->execute([$userId]);
-            $userAddresses = $stmt->fetchAll(PDO::FETCH_ASSOC);
-            $stmt = $pdo->prepare('SELECT email, first_name, last_name, phone FROM users WHERE id = ? LIMIT 1');
-            $stmt->execute([$userId]);
-            $u = $stmt->fetch(PDO::FETCH_ASSOC);
-            if ($u) {
-                $userEmail = $u['email'] ?? '';
-                $userName = trim(($u['first_name'] ?? '') . ' ' . ($u['last_name'] ?? ''));
-                $userPhone = $u['phone'] ?? '';
+            $userAddresses = Address::getByUserId($userId);
+            $user = User::find($userId);
+            if ($user) {
+                $userEmail = $user['email'] ?? '';
+                $userName = trim(($user['first_name'] ?? '') . ' ' . ($user['last_name'] ?? ''));
+                $userPhone = $user['phone'] ?? '';
             }
         }
         $title = 'Ödeme - ' . env('APP_NAME', 'Lumina Boutique');
@@ -185,12 +99,12 @@ class CheckoutController
     public function store(): void
     {
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-            header('Location: ' . $this->baseUrl() . '/odeme');
+            $this->redirect('/odeme');
             exit;
         }
         $cart = $_SESSION['cart'] ?? [];
         if (empty($cart)) {
-            header('Location: ' . $this->baseUrl() . '/sepet');
+            $this->redirect('/sepet');
             exit;
         }
         $baseUrl = $this->baseUrl();
@@ -207,25 +121,20 @@ class CheckoutController
         if (!in_array($paymentMethod, ['cod', 'bank_transfer', 'stripe'], true)) {
             $paymentMethod = 'cod';
         }
-        $pdo = Database::getConnection();
         $addr = null;
         if ($userId > 0 && $addressId > 0) {
-            $stmt = $pdo->prepare('SELECT * FROM addresses WHERE id = ? AND user_id = ? LIMIT 1');
-            $stmt->execute([$addressId, $userId]);
-            $addr = $stmt->fetch(PDO::FETCH_ASSOC);
+            $addr = Address::findByIdAndUserId($addressId, $userId);
         }
         if ($addr) {
-                $firstName = trim($addr['first_name'] ?? '');
-                $lastName = trim($addr['last_name'] ?? '');
-                $phone = trim($addr['phone'] ?? '');
-                $city = trim($addr['city'] ?? '');
-                $district = trim($addr['district'] ?? '');
-                $addressLine = trim($addr['address_line'] ?? '');
-                $postalCode = trim($addr['postal_code'] ?? '');
-                $stmt = $pdo->prepare('SELECT email FROM users WHERE id = ? LIMIT 1');
-                $stmt->execute([$userId]);
-                $u = $stmt->fetch(PDO::FETCH_ASSOC);
-                $email = $u ? trim($u['email'] ?? '') : $email;
+            $firstName = trim($addr['first_name'] ?? '');
+            $lastName = trim($addr['last_name'] ?? '');
+            $phone = trim($addr['phone'] ?? '');
+            $city = trim($addr['city'] ?? '');
+            $district = trim($addr['district'] ?? '');
+            $addressLine = trim($addr['address_line'] ?? '');
+            $postalCode = trim($addr['postal_code'] ?? '');
+            $user = User::find($userId);
+            $email = $user ? trim($user['email'] ?? '') : $email;
         }
         $postalCode = $addr ? trim($addr['postal_code'] ?? '') : trim($_POST['shipping_postal_code'] ?? '');
         $errors = [];
@@ -242,8 +151,7 @@ class CheckoutController
         if (!empty($errors)) {
             $_SESSION['checkout_errors'] = $errors;
             $_SESSION['checkout_old'] = $_POST;
-            header('Location: ' . $baseUrl . '/odeme');
-            exit;
+            $this->redirect('/odeme');
         }
         $pdo = Database::getConnection();
         $orderItems = [];
@@ -251,7 +159,7 @@ class CheckoutController
         foreach ($cart as $key => $qty) {
             $qty = (int) $qty;
             if ($qty < 1) continue;
-            $parsed = $this->parseCartKey((string) $key);
+            $parsed = CartService::parseCartKey((string) $key);
             $productId = $parsed['product_id'];
             $variantId = $parsed['variant_id'];
             if ($productId < 1) continue;
@@ -290,15 +198,14 @@ class CheckoutController
         }
         if (empty($orderItems)) {
             $_SESSION['checkout_errors'] = ['Sepette geçerli ürün kalmadı.'];
-            header('Location: ' . $baseUrl . '/sepet');
-            exit;
+            $this->redirect('/sepet');
         }
         $shippingCost = self::getShippingCost($subtotal);
         $couponCode = trim($_POST['coupon_code'] ?? '');
         $couponId = null;
         $discountAmount = 0.0;
         if ($couponCode !== '') {
-            $valid = self::validateCoupon($pdo, $couponCode, $subtotal);
+            $valid = self::validateCoupon($couponCode, $subtotal);
             if ($valid !== null) {
                 $couponId = (int) $valid['coupon']['id'];
                 $discountAmount = $valid['discount'];
@@ -306,7 +213,7 @@ class CheckoutController
         }
         $total = $subtotal + $shippingCost - $discountAmount;
         $total = max(0, round($total, 2));
-        $orderNumber = $this->generateOrderNumber($pdo);
+        $orderNumber = Order::generateOrderNumber();
         $notes = trim($_POST['customer_notes'] ?? '');
         $pdo->beginTransaction();
         try {
@@ -362,8 +269,7 @@ class CheckoutController
             error_log('Checkout order trace: ' . $e->getTraceAsString());
             $_SESSION['checkout_errors'] = ['Sipariş oluşturulurken hata oluştu. (' . $e->getMessage() . ')'];
             $_SESSION['checkout_old'] = $_POST;
-            header('Location: ' . $baseUrl . '/odeme');
-            exit;
+            $this->redirect('/odeme');
         }
         $_SESSION['cart'] = [];
         $_SESSION['order_success'] = $orderNumber;
@@ -373,8 +279,7 @@ class CheckoutController
             'guest_email' => $email,
             'is_guest' => $userId <= 0,
         ];
-        header('Location: ' . $baseUrl . '/odeme/tamamlandi');
-        exit;
+        $this->redirect('/odeme/tamamlandi');
     }
 
     public function success(): void
@@ -387,70 +292,8 @@ class CheckoutController
         $customerName = $successData['customer_name'] ?? '';
         $guestEmail = $successData['guest_email'] ?? '';
         $isGuest = (bool) ($successData['is_guest'] ?? true);
-        $this->renderWithIncludesLayout('frontend/checkout/order-success', compact('title', 'baseUrl', 'orderNumber', 'customerName', 'guestEmail', 'isGuest'));
+        $this->render('frontend/checkout/order-success', compact('title', 'baseUrl', 'orderNumber', 'customerName', 'guestEmail', 'isGuest'));
     }
 
-    private function generateOrderNumber(PDO $pdo): string
-    {
-        $prefix = 'LB-' . date('Ymd') . '-';
-        for ($i = 0; $i < 20; $i++) {
-            $num = str_pad((string) random_int(1, 9999), 4, '0', STR_PAD_LEFT);
-            $orderNumber = $prefix . $num;
-            $stmt = $pdo->prepare('SELECT id FROM orders WHERE order_number = ? LIMIT 1');
-            $stmt->execute([$orderNumber]);
-            if (!$stmt->fetch()) {
-                return $orderNumber;
-            }
-        }
-        return $prefix . uniqid();
-    }
 
-    private function baseUrl(): string
-    {
-        $script = $_SERVER['SCRIPT_NAME'] ?? '';
-        $base = dirname($script);
-        return ($base === '/' || $base === '\\') ? '' : $base;
-    }
-
-    private function render(string $view, array $data = []): void
-    {
-        extract($data, EXTR_SKIP);
-        $viewPath = BASE_PATH . '/app/Views/' . str_replace('.', '/', $view) . '.php';
-        if (!is_file($viewPath)) {
-            echo '<p>Görünüm bulunamadı.</p>';
-            return;
-        }
-        ob_start();
-        require $viewPath;
-        $content = ob_get_clean();
-        $layoutPath = BASE_PATH . '/app/Views/frontend/layouts/main.php';
-        require $layoutPath;
-    }
-
-    /** includes/layout.php kullanır (header, footer, cart-drawer, toast). */
-    private function renderWithIncludesLayout(string $view, array $data = []): void
-    {
-        extract($data, EXTR_SKIP);
-        $viewPath = BASE_PATH . '/app/Views/' . str_replace('.', '/', $view) . '.php';
-        if (!is_file($viewPath)) {
-            echo '<p>Görünüm bulunamadı.</p>';
-            return;
-        }
-        ob_start();
-        require $viewPath;
-        $content = ob_get_clean();
-        $layoutPath = BASE_PATH . '/includes/layout.php';
-        require $layoutPath;
-    }
-
-    private function renderWithoutLayout(string $view, array $data = []): void
-    {
-        extract($data, EXTR_SKIP);
-        $viewPath = BASE_PATH . '/app/Views/' . str_replace('.', '/', $view) . '.php';
-        if (!is_file($viewPath)) {
-            echo '<p>Görünüm bulunamadı.</p>';
-            return;
-        }
-        require $viewPath;
-    }
 }

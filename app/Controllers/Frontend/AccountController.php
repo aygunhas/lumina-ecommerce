@@ -5,40 +5,17 @@ declare(strict_types=1);
 namespace App\Controllers\Frontend;
 
 use App\Config\Database;
+use App\Models\Address;
+use App\Models\Order;
+use App\Models\Product;
+use App\Models\User;
 use PDO;
 
 /**
  * Mağaza: Hesabım – siparişlerim, adreslerim, bilgilerim
  */
-class AccountController
+class AccountController extends FrontendBaseController
 {
-    private function userId(): int
-    {
-        return (int) ($_SESSION['user_id'] ?? 0);
-    }
-
-    private function baseUrl(): string
-    {
-        $script = $_SERVER['SCRIPT_NAME'] ?? '';
-        $base = dirname($script);
-        return ($base === '/' || $base === '\\') ? '' : $base;
-    }
-
-    private function render(string $view, array $data = []): void
-    {
-        extract($data, EXTR_SKIP);
-        $baseUrl = $baseUrl ?? $this->baseUrl();
-        $viewPath = BASE_PATH . '/app/Views/' . str_replace('.', '/', $view) . '.php';
-        if (!is_file($viewPath)) {
-            echo '<p>Görünüm bulunamadı.</p>';
-            return;
-        }
-        ob_start();
-        require $viewPath;
-        $content = ob_get_clean();
-        $layoutPath = BASE_PATH . '/app/Views/frontend/layouts/main.php';
-        require $layoutPath;
-    }
 
     /** Hesabım ana sayfa – tüm sekmeler ?tab= ile tek view */
     public function index(): void
@@ -50,7 +27,6 @@ class AccountController
         $activeTab = $_GET['tab'] ?? 'overview';
         $orderId = isset($_GET['id']) ? (int) $_GET['id'] : 0;
 
-        $pdo = Database::getConnection();
         $statusLabels = [
             'pending' => 'Beklemede', 'confirmed' => 'Onaylandı', 'processing' => 'Hazırlanıyor',
             'shipped' => 'Kargoda', 'delivered' => 'Teslim edildi', 'cancelled' => 'İptal', 'refunded' => 'İade',
@@ -69,19 +45,18 @@ class AccountController
         $productImages = [];
 
         if ($uid > 0) {
-            $stmt = $pdo->prepare('SELECT id, order_number, status, created_at FROM orders WHERE user_id = ? ORDER BY created_at DESC LIMIT 1');
-            $stmt->execute([$uid]);
-            $lastOrder = $stmt->fetch(PDO::FETCH_ASSOC);
-            $stmt = $pdo->prepare('SELECT * FROM addresses WHERE user_id = ? ORDER BY is_default DESC, id ASC LIMIT 1');
-            $stmt->execute([$uid]);
-            $defaultAddress = $stmt->fetch(PDO::FETCH_ASSOC);
+            // Son sipariş
+            $allOrders = Order::getByUserId($uid);
+            $lastOrder = !empty($allOrders) ? $allOrders[0] : null;
+            
+            // Varsayılan adres
+            $defaultAddress = Address::getDefaultByUserId($uid);
         }
 
         if ($activeTab === 'orders' || $activeTab === 'overview') {
-            $stmt = $pdo->prepare('SELECT id, order_number, total, status, payment_method, created_at FROM orders WHERE user_id = ? ORDER BY created_at DESC');
-            $stmt->execute([$uid]);
-            $orders = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            $orders = Order::getByUserId($uid);
             if (!empty($orders)) {
+                $pdo = Database::getConnection();
                 $ids = array_column($orders, 'id');
                 $placeholders = implode(',', array_fill(0, count($ids), '?'));
                 $stmt = $pdo->prepare("SELECT order_id, SUM(quantity) AS item_count FROM order_items WHERE order_id IN ($placeholders) GROUP BY order_id");
@@ -94,37 +69,26 @@ class AccountController
 
         if ($activeTab === 'order-detail') {
             if ($orderId < 1) {
-                header('Location: ' . $baseUrl . '/hesabim?tab=orders');
-                exit;
+                $this->redirect('/hesabim?tab=orders');
             }
-            $stmt = $pdo->prepare('SELECT * FROM orders WHERE id = ? AND user_id = ? LIMIT 1');
-            $stmt->execute([$orderId, $uid]);
-            $order = $stmt->fetch(PDO::FETCH_ASSOC);
-            if (!$order) {
-                header('Location: ' . $baseUrl . '/hesabim?tab=orders');
-                exit;
+            $order = Order::find($orderId);
+            if (!$order || (int) $order['user_id'] !== $uid) {
+                $this->redirect('/hesabim?tab=orders');
             }
-            $stmt = $pdo->prepare('SELECT * FROM order_items WHERE order_id = ? ORDER BY id');
-            $stmt->execute([$orderId]);
-            $items = $stmt->fetchAll(PDO::FETCH_ASSOC);
-            $stmt = $pdo->prepare('SELECT * FROM shipments WHERE order_id = ? ORDER BY shipped_at DESC');
-            $stmt->execute([$orderId]);
-            $shipments = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            $items = Order::getItems($orderId);
+            $shipments = Order::getShipments($orderId);
         }
 
         if ($activeTab === 'addresses') {
-            $stmt = $pdo->prepare('SELECT * FROM addresses WHERE user_id = ? ORDER BY is_default DESC, id ASC');
-            $stmt->execute([$uid]);
-            $addresses = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            $addresses = Address::getByUserId($uid);
         }
 
         if ($activeTab === 'details') {
-            $stmt = $pdo->prepare('SELECT id, email, first_name, last_name, phone FROM users WHERE id = ? LIMIT 1');
-            $stmt->execute([$uid]);
-            $user = $stmt->fetch(PDO::FETCH_ASSOC);
+            $user = User::find($uid);
         }
 
         if ($activeTab === 'favorites') {
+            $pdo = Database::getConnection();
             $stmt = $pdo->prepare('
                 SELECT p.id, p.name, p.slug, p.price, p.sale_price, p.is_featured
                 FROM wishlists w
@@ -136,14 +100,7 @@ class AccountController
             $products = $stmt->fetchAll(PDO::FETCH_ASSOC);
             if (!empty($products)) {
                 $ids = array_column($products, 'id');
-                $placeholders = implode(',', array_fill(0, count($ids), '?'));
-                $stmt = $pdo->prepare("SELECT product_id, path FROM product_images WHERE product_id IN ($placeholders) ORDER BY sort_order ASC, id ASC");
-                $stmt->execute($ids);
-                while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
-                    if (!isset($productImages[$row['product_id']])) {
-                        $productImages[$row['product_id']] = $row['path'];
-                    }
-                }
+                $productImages = Product::getMainImagesForProducts($ids);
             }
         }
 
@@ -158,8 +115,7 @@ class AccountController
     /** Siparişlerim listesi – yönlendirme */
     public function orders(): void
     {
-        header('Location: ' . $this->baseUrl() . '/hesabim?tab=orders');
-        exit;
+        $this->redirect('/hesabim?tab=orders');
     }
 
     /** Sipariş detay – yönlendirme */
@@ -168,18 +124,15 @@ class AccountController
         $id = isset($_GET['id']) ? (int) $_GET['id'] : 0;
         $baseUrl = $this->baseUrl();
         if ($id < 1) {
-            header('Location: ' . $baseUrl . '/hesabim?tab=orders');
-            exit;
+            $this->redirect('/hesabim?tab=orders');
         }
-        header('Location: ' . $baseUrl . '/hesabim?tab=order-detail&id=' . $id);
-        exit;
+        $this->redirect('/hesabim?tab=order-detail&id=' . $id);
     }
 
     /** Adreslerim listesi – yönlendirme */
     public function addresses(): void
     {
-        header('Location: ' . $this->baseUrl() . '/hesabim?tab=addresses');
-        exit;
+        $this->redirect('/hesabim?tab=addresses');
     }
 
     /** Yeni adres formu veya kaydet */
@@ -224,8 +177,7 @@ class AccountController
                 $sep = strpos($redirectUrl, '?') !== false ? '&' : '?';
                 $redirectUrl .= $sep . 'added=1';
             }
-            header('Location: ' . $baseUrl . $redirectUrl);
-            exit;
+            $this->redirect($redirectUrl);
         }
         $errors = $_SESSION['address_errors'] ?? [];
         $old = $_SESSION['address_old'] ?? [];
@@ -241,16 +193,14 @@ class AccountController
         $id = isset($_GET['id']) ? (int) $_GET['id'] : 0;
         $baseUrl = $this->baseUrl();
         if ($id < 1) {
-            header('Location: ' . $baseUrl . '/hesabim/adresler');
-            exit;
+            $this->redirect('/hesabim/adresler');
         }
         $pdo = Database::getConnection();
         $stmt = $pdo->prepare('SELECT * FROM addresses WHERE id = ? AND user_id = ? LIMIT 1');
         $stmt->execute([$id, $uid]);
         $address = $stmt->fetch(PDO::FETCH_ASSOC);
         if (!$address) {
-            header('Location: ' . $baseUrl . '/hesabim/adresler');
-            exit;
+            $this->redirect('/hesabim/adresler');
         }
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $firstName = trim($_POST['first_name'] ?? '');
@@ -272,8 +222,7 @@ class AccountController
             if (!empty($errors)) {
                 $_SESSION['address_errors'] = $errors;
                 $_SESSION['address_old'] = $_POST;
-                header('Location: ' . $baseUrl . '/hesabim?tab=addresses');
-                exit;
+                $this->redirect('/hesabim?tab=addresses');
             }
             if ($isDefault) {
                 $pdo->prepare('UPDATE addresses SET is_default = 0 WHERE user_id = ?')->execute([$uid]);
@@ -282,8 +231,7 @@ class AccountController
                 UPDATE addresses SET title = ?, first_name = ?, last_name = ?, phone = ?, city = ?, district = ?, address_line = ?, postal_code = ?, is_default = ?, updated_at = NOW()
                 WHERE id = ? AND user_id = ?
             ')->execute([$title ?: null, $firstName, $lastName, $phone, $city, $district, $addressLine, $postalCode ?: null, $isDefault, $id, $uid]);
-            header('Location: ' . $baseUrl . '/hesabim?tab=addresses&updated=1');
-            exit;
+            $this->redirect('/hesabim?tab=addresses&updated=1');
         }
         $errors = $_SESSION['address_errors'] ?? [];
         $old = $_SESSION['address_old'] ?? [];
@@ -299,21 +247,18 @@ class AccountController
         $id = isset($_REQUEST['id']) ? (int) $_REQUEST['id'] : 0;
         $baseUrl = $this->baseUrl();
         if ($id < 1) {
-            header('Location: ' . $baseUrl . '/hesabim?tab=addresses');
-            exit;
+            $this->redirect('/hesabim?tab=addresses');
         }
         $pdo = Database::getConnection();
         $stmt = $pdo->prepare('SELECT * FROM addresses WHERE id = ? AND user_id = ? LIMIT 1');
         $stmt->execute([$id, $uid]);
         $address = $stmt->fetch(PDO::FETCH_ASSOC);
         if (!$address) {
-            header('Location: ' . $baseUrl . '/hesabim?tab=addresses');
-            exit;
+            $this->redirect('/hesabim?tab=addresses');
         }
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $pdo->prepare('DELETE FROM addresses WHERE id = ? AND user_id = ?')->execute([$id, $uid]);
-            header('Location: ' . $baseUrl . '/hesabim?tab=addresses&deleted=1');
-            exit;
+            $this->redirect('/hesabim?tab=addresses&deleted=1');
         }
         $title = 'Adresi sil - ' . env('APP_NAME', 'Lumina Boutique');
         $this->render('frontend/account/address_delete', compact('title', 'baseUrl', 'address'));
@@ -325,16 +270,14 @@ class AccountController
         $uid = $this->userId();
         $baseUrl = $this->baseUrl();
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-            header('Location: ' . $baseUrl . '/hesabim?tab=details');
-            exit;
+            $this->redirect('/hesabim?tab=details');
         }
         $pdo = Database::getConnection();
         $stmt = $pdo->prepare('SELECT id, email, first_name, last_name, phone FROM users WHERE id = ? LIMIT 1');
         $stmt->execute([$uid]);
         $user = $stmt->fetch(PDO::FETCH_ASSOC);
         if (!$user) {
-            header('Location: ' . $baseUrl . '/cikis');
-            exit;
+            $this->redirect('/cikis');
         }
         $firstName = trim($_POST['first_name'] ?? '');
             $lastName = trim($_POST['last_name'] ?? '');
@@ -365,8 +308,7 @@ class AccountController
             if (!empty($errors)) {
                 $_SESSION['profile_errors'] = $errors;
                 $_SESSION['profile_old'] = $_POST;
-                header('Location: ' . $baseUrl . '/hesabim?tab=details');
-                exit;
+                $this->redirect('/hesabim?tab=details');
             }
             if ($newPassword !== '') {
                 $hash = password_hash($newPassword, PASSWORD_DEFAULT);
@@ -377,52 +319,85 @@ class AccountController
                     ->execute([$firstName, $lastName, $phone ?: null, $uid]);
             }
             $_SESSION['user_name'] = trim($firstName . ' ' . $lastName);
-            header('Location: ' . $baseUrl . '/hesabim?tab=details&updated=1');
-            exit;
+            $this->redirect('/hesabim?tab=details&updated=1');
     }
 
     /** Favori listesi – yönlendirme */
     public function favoriler(): void
     {
-        header('Location: ' . $this->baseUrl() . '/hesabim?tab=favorites');
-        exit;
+        $this->redirect('/hesabim?tab=favorites');
     }
 
     /** Favorilere ekle (POST product_id, redirect) */
     public function wishlistAdd(): void
     {
+        $isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
         $uid = $this->userId();
         $productId = (int) ($_POST['product_id'] ?? $_GET['product_id'] ?? 0);
         $baseUrl = $this->baseUrl();
         $redirect = $_POST['redirect'] ?? $_GET['redirect'] ?? $baseUrl . '/';
+        
         if ($productId < 1) {
-            header('Location: ' . $redirect);
-            exit;
+            if ($isAjax) {
+                $this->json(['success' => false, 'message' => 'Geçersiz ürün ID.']);
+            }
+            $this->redirect($redirect);
         }
+        
         $pdo = Database::getConnection();
         $stmt = $pdo->prepare('SELECT id FROM products WHERE id = ? AND is_active = 1 LIMIT 1');
         $stmt->execute([$productId]);
         if (!$stmt->fetch()) {
-            header('Location: ' . $redirect);
-            exit;
+            if ($isAjax) {
+                $this->json(['success' => false, 'message' => 'Ürün bulunamadı.']);
+            }
+            $this->redirect($redirect);
         }
-        $pdo->prepare('INSERT IGNORE INTO wishlists (user_id, product_id, created_at) VALUES (?, ?, NOW())')->execute([$uid, $productId]);
-        header('Location: ' . $redirect);
-        exit;
+        
+        // Zaten favorilerde mi kontrol et
+        $checkStmt = $pdo->prepare('SELECT id FROM wishlists WHERE user_id = ? AND product_id = ? LIMIT 1');
+        $checkStmt->execute([$uid, $productId]);
+        $alreadyExists = $checkStmt->fetch();
+        
+        if (!$alreadyExists) {
+            $pdo->prepare('INSERT INTO wishlists (user_id, product_id, created_at) VALUES (?, ?, NOW())')->execute([$uid, $productId]);
+        }
+        
+        // Favori sayısını hesapla
+        $countStmt = $pdo->prepare('SELECT COUNT(*) FROM wishlists WHERE user_id = ?');
+        $countStmt->execute([$uid]);
+        $wishlistCount = (int) $countStmt->fetchColumn();
+        
+        if ($isAjax) {
+            $this->json(['success' => true, 'message' => 'Ürün favorilere eklendi.', 'inWishlist' => true, 'count' => $wishlistCount]);
+        } else {
+            $this->redirect($redirect);
+        }
     }
 
     /** Favorilerden çıkar */
     public function wishlistRemove(): void
     {
+        $isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
         $uid = $this->userId();
         $productId = (int) ($_POST['product_id'] ?? $_GET['product_id'] ?? 0);
         $baseUrl = $this->baseUrl();
         $redirect = $_POST['redirect'] ?? $_GET['redirect'] ?? $baseUrl . '/hesabim/favoriler';
+        
+        $pdo = Database::getConnection();
         if ($productId > 0) {
-            $pdo = Database::getConnection();
             $pdo->prepare('DELETE FROM wishlists WHERE user_id = ? AND product_id = ?')->execute([$uid, $productId]);
         }
-        header('Location: ' . $redirect);
-        exit;
+        
+        // Favori sayısını hesapla
+        $countStmt = $pdo->prepare('SELECT COUNT(*) FROM wishlists WHERE user_id = ?');
+        $countStmt->execute([$uid]);
+        $wishlistCount = (int) $countStmt->fetchColumn();
+        
+        if ($isAjax) {
+            $this->json(['success' => true, 'message' => 'Ürün favorilerden çıkarıldı.', 'inWishlist' => false, 'count' => $wishlistCount]);
+        } else {
+            $this->redirect($redirect);
+        }
     }
 }

@@ -5,6 +5,9 @@ declare(strict_types=1);
 namespace App\Controllers\Frontend;
 
 use App\Config\Database;
+use App\Models\Category;
+use App\Models\Product;
+use App\Models\Slider;
 use PDO;
 
 /**
@@ -14,59 +17,51 @@ class HomeController extends FrontendBaseController
 {
     public function index(): void
     {
-        $pdo = Database::getConnection();
-        $categories = $pdo->query('
-            SELECT id, name, slug, image, home_hero_text 
-            FROM categories 
-            WHERE parent_id IS NULL AND is_active = 1 
-            ORDER BY sort_order ASC, name ASC 
-            LIMIT 5
-        ')->fetchAll(PDO::FETCH_ASSOC);
-        $featuredProducts = $pdo->query('
-            SELECT id, name, slug, price, sale_price, is_featured, is_new FROM products WHERE is_active = 1 AND is_featured = 1 ORDER BY sort_order ASC, name ASC LIMIT 8
-        ')->fetchAll(PDO::FETCH_ASSOC);
-        // Öne çıkan azsa veya yoksa: son eklenen ürünlerle listeyi 8'e tamamla (çakışan id'leri çıkarıp ekle)
-        $limit = 8;
-        if (count($featuredProducts) < $limit) {
-            $excludeIds = array_column($featuredProducts, 'id');
-            $placeholders = $excludeIds ? implode(',', array_fill(0, count($excludeIds), '?')) : '';
-            $extraSql = $placeholders
-                ? "SELECT id, name, slug, price, sale_price, is_featured, is_new FROM products WHERE is_active = 1 AND id NOT IN ($placeholders) ORDER BY created_at DESC LIMIT " . ($limit - count($featuredProducts))
-                : "SELECT id, name, slug, price, sale_price, is_featured, is_new FROM products WHERE is_active = 1 ORDER BY created_at DESC LIMIT $limit";
-            $stmt = $placeholders ? $pdo->prepare($extraSql) : $pdo->query($extraSql);
-            if ($placeholders) {
-                $stmt->execute($excludeIds);
-            }
-            $extra = $stmt->fetchAll(PDO::FETCH_ASSOC);
-            $featuredProducts = array_merge($featuredProducts, $extra);
-        }
-        if (empty($featuredProducts)) {
-            $featuredProducts = $pdo->query('
-                SELECT id, name, slug, price, sale_price, is_featured, is_new FROM products WHERE is_active = 1 ORDER BY created_at DESC LIMIT 8
-            ')->fetchAll(PDO::FETCH_ASSOC);
-        }
+        $categories = Category::getMainCategories(5);
+        
+        // Sadece öne çıkan ürünleri göster (8'den az olsa bile)
+        $featuredProducts = Product::getFeatured(8);
+        
         $productImages = [];
+        $productHasVariants = [];
+        $productColorImages = [];
+        $productColorVariants = [];
         if (!empty($featuredProducts)) {
             $ids = array_column($featuredProducts, 'id');
-            $placeholders = implode(',', array_fill(0, count($ids), '?'));
-            $stmt = $pdo->prepare("SELECT product_id, path FROM product_images WHERE product_id IN ($placeholders) ORDER BY sort_order ASC, id ASC");
-            $stmt->execute($ids);
-            while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
-                if (!isset($productImages[$row['product_id']])) {
-                    $productImages[$row['product_id']] = $row['path'];
+            $productImages = Product::getMainImagesForProducts($ids);
+            $productHasVariants = Product::hasVariantsForProducts($ids);
+            $productColorImages = Product::getColorImagesForProducts($ids);
+            
+            // Her ürün için renk varyantlarını çek
+            $pdo = Database::getConnection();
+            foreach ($ids as $productId) {
+                // Renk attribute'unu bul
+                $colorAttrStmt = $pdo->prepare('SELECT id FROM attributes WHERE type = ? LIMIT 1');
+                $colorAttrStmt->execute(['color']);
+                $colorAttrId = $colorAttrStmt->fetchColumn();
+                
+                if ($colorAttrId) {
+                    // Bu ürünün varyantlarındaki renkleri çek
+                    $variantStmt = $pdo->prepare('
+                        SELECT DISTINCT av.id, av.value, av.color_hex, av.sort_order
+                        FROM product_variants pv
+                        INNER JOIN product_variant_attribute_values pvav ON pv.id = pvav.variant_id
+                        INNER JOIN attribute_values av ON pvav.attribute_value_id = av.id
+                        WHERE pv.product_id = ? AND av.attribute_id = ?
+                        ORDER BY av.sort_order ASC
+                    ');
+                    $variantStmt->execute([$productId, $colorAttrId]);
+                    $productColorVariants[$productId] = $variantStmt->fetchAll(PDO::FETCH_ASSOC);
+                } else {
+                    $productColorVariants[$productId] = [];
                 }
             }
         }
 
-        $sliders = $pdo->query('
-            SELECT id, title, subtitle, image, link, link_text
-            FROM sliders
-            WHERE is_active = 1
-            ORDER BY sort_order ASC, id ASC
-        ')->fetchAll(PDO::FETCH_ASSOC);
+        $sliders = Slider::getActive();
 
         $title = env('APP_NAME', 'Lumina Boutique');
         $baseUrl = $this->baseUrl();
-        $this->render('frontend/home', compact('title', 'baseUrl', 'categories', 'featuredProducts', 'productImages', 'sliders'));
+        $this->render('frontend/home', compact('title', 'baseUrl', 'categories', 'featuredProducts', 'productImages', 'productHasVariants', 'productColorImages', 'productColorVariants', 'sliders'));
     }
 }

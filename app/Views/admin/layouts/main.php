@@ -25,27 +25,12 @@ $isActive = function ($path) use ($currentUri) {
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
-    <!-- Tailwind CDN (frontend ile aynı) -->
-    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Tailwind CSS (Build) -->
     <link rel="stylesheet" href="<?= $baseUrl ?>/assets/css/main.css">
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    fontFamily: {
-                        sans: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
-                    },
-                },
-            },
-        }
-    </script>
     <!-- Alpine.js (frontend ile aynı sıra) -->
     <script defer src="https://cdn.jsdelivr.net/npm/@alpinejs/intersect@3.x.x/dist/cdn.min.js"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/@alpinejs/collapse@3.x.x/dist/cdn.min.js"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3/dist/cdn.min.js"></script>
-    <style>
-        [x-cloak] { display: none !important; }
-    </style>
 </head>
 <body class="bg-stone-100 font-sans text-stone-800" x-data="{ sidebarOpen: false }">
     <!-- Mobil sidebar overlay -->

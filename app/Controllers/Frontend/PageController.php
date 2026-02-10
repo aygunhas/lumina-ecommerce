@@ -5,12 +5,14 @@ declare(strict_types=1);
 namespace App\Controllers\Frontend;
 
 use App\Config\Database;
+use App\Models\Order;
+use App\Models\Page;
 use PDO;
 
 /**
  * Mağaza: Sabit sayfalar (Hakkımızda vb.) ve /sayfa/:slug ile sayfa gösterme
  */
-class PageController
+class PageController extends FrontendBaseController
 {
     public function about(): void
     {
@@ -34,29 +36,22 @@ class PageController
         $notFound = false;
 
         if ($q !== '') {
-            $pdo = Database::getConnection();
             if (strpos($q, '@') !== false) {
-                $stmt = $pdo->prepare('SELECT * FROM orders WHERE LOWER(guest_email) = LOWER(?) ORDER BY created_at DESC LIMIT 1');
-                $stmt->execute([$q]);
+                $order = Order::findLatestByGuestEmail($q);
             } else {
-                $stmt = $pdo->prepare('SELECT * FROM orders WHERE order_number = ? LIMIT 1');
-                $stmt->execute([$q]);
+                $order = Order::findByOrderNumber($q);
             }
-            $order = $stmt->fetch(PDO::FETCH_ASSOC);
+            
             if ($order) {
                 $orderId = (int) $order['id'];
-                $stmt = $pdo->prepare('SELECT * FROM order_items WHERE order_id = ? ORDER BY id ASC');
-                $stmt->execute([$orderId]);
-                $items = $stmt->fetchAll(PDO::FETCH_ASSOC);
-                $stmt = $pdo->prepare('SELECT * FROM shipments WHERE order_id = ? ORDER BY id ASC');
-                $stmt->execute([$orderId]);
-                $shipments = $stmt->fetchAll(PDO::FETCH_ASSOC);
+                $items = Order::getItems($orderId);
+                $shipments = Order::getShipments($orderId);
             } else {
                 $notFound = true;
             }
         }
 
-        $this->renderWithIncludesLayout('frontend/track-order', compact('title', 'baseUrl', 'order', 'items', 'shipments', 'q', 'notFound'));
+        $this->render('frontend/track-order', compact('title', 'baseUrl', 'order', 'items', 'shipments', 'q', 'notFound'));
     }
 
     /**
@@ -84,10 +79,7 @@ class PageController
             return;
         }
 
-        $pdo = Database::getConnection();
-        $stmt = $pdo->prepare('SELECT id, slug, title, content, meta_title, meta_description FROM pages WHERE slug = ? AND is_active = 1 LIMIT 1');
-        $stmt->execute([$slug]);
-        $page = $stmt->fetch(\PDO::FETCH_ASSOC);
+        $page = Page::findActiveBySlug($slug);
 
         if (!$page) {
             $this->send404();
@@ -135,43 +127,5 @@ class PageController
     private function send404(): void
     {
         require BASE_PATH . '/includes/render-404.php';
-    }
-
-    private function baseUrl(): string
-    {
-        $script = $_SERVER['SCRIPT_NAME'] ?? '';
-        $base = dirname($script);
-        return ($base === '/' || $base === '\\') ? '' : $base;
-    }
-
-    private function render(string $view, array $data = []): void
-    {
-        extract($data, EXTR_SKIP);
-        $viewPath = BASE_PATH . '/app/Views/' . str_replace('.', '/', $view) . '.php';
-        if (!is_file($viewPath)) {
-            echo '<p>Görünüm bulunamadı.</p>';
-            return;
-        }
-        ob_start();
-        require $viewPath;
-        $content = ob_get_clean();
-        $layoutPath = BASE_PATH . '/app/Views/frontend/layouts/main.php';
-        require $layoutPath;
-    }
-
-    /** includes/layout.php kullanır (header, footer, cart-drawer, toast). */
-    private function renderWithIncludesLayout(string $view, array $data = []): void
-    {
-        extract($data, EXTR_SKIP);
-        $viewPath = BASE_PATH . '/app/Views/' . str_replace('.', '/', $view) . '.php';
-        if (!is_file($viewPath)) {
-            echo '<p>Görünüm bulunamadı.</p>';
-            return;
-        }
-        ob_start();
-        require $viewPath;
-        $content = ob_get_clean();
-        $layoutPath = BASE_PATH . '/includes/layout.php';
-        require $layoutPath;
     }
 }

@@ -154,6 +154,148 @@ class ProductsController extends AdminBaseController
         }
     }
 
+    private function handleColorImages(PDO $pdo, int $productId): void
+    {
+        // Önce attribute_value_id sütununun varlığını kontrol et
+        try {
+            $checkColumnStmt = $pdo->query("SHOW COLUMNS FROM product_images LIKE 'attribute_value_id'");
+            if ($checkColumnStmt->rowCount() === 0) {
+                error_log('handleColorImages: attribute_value_id sütunu bulunamadı. Migration çalıştırılmalı: 2024_01_01_000053_add_attribute_value_id_to_product_images.php');
+                $_SESSION['error'] = 'Renk bazlı fotoğraflar için veritabanı güncellemesi gerekiyor. Lütfen migration dosyasını çalıştırın: 2024_01_01_000053_add_attribute_value_id_to_product_images.php';
+                return;
+            }
+        } catch (\PDOException $e) {
+            error_log('handleColorImages: Veritabanı kontrolü hatası: ' . $e->getMessage());
+            return;
+        }
+        
+        // Renk bazlı fotoğrafları kontrol et
+        // FormData ile gönderildiğinde format: color_images[colorId][imgIndex]
+        // PHP'de $_FILES['color_images']['name'][colorId][imgIndex] şeklinde erişilir
+        if (empty($_FILES['color_images']) || !is_array($_FILES['color_images'])) {
+            error_log('handleColorImages: $_FILES[color_images] boş veya array değil');
+            return;
+        }
+        
+        $dir = BASE_PATH . '/public/' . self::UPLOAD_DIR;
+        if (!is_dir($dir)) {
+            mkdir($dir, 0755, true);
+        }
+        
+        // PHP'nin $_FILES yapısını kontrol et
+        // FormData ile color_images[colorId][imgIndex] formatında gönderildiğinde:
+        // $_FILES['color_images']['name'][colorId][imgIndex] şeklinde erişilir
+        $colorImagesData = $_FILES['color_images'];
+        
+        // Debug: $_FILES yapısını logla
+        error_log('handleColorImages: $_FILES[color_images] structure: ' . print_r(array_keys($colorImagesData), true));
+        
+        // Her renk için fotoğrafları işle
+        if (isset($colorImagesData['name']) && is_array($colorImagesData['name'])) {
+            foreach ($colorImagesData['name'] as $colorId => $colorFiles) {
+                $colorId = (int) $colorId;
+                if ($colorId < 1) {
+                    continue;
+                }
+                
+                error_log("handleColorImages: Processing colorId: $colorId");
+                
+                // Renk ID'sinin geçerli bir attribute_value_id olduğunu kontrol et
+                $checkStmt = $pdo->prepare('SELECT id FROM attribute_values WHERE id = ? LIMIT 1');
+                $checkStmt->execute([$colorId]);
+                if (!$checkStmt->fetch()) {
+                    error_log("handleColorImages: Invalid colorId: $colorId");
+                    continue; // Geçersiz renk ID'si
+                }
+                
+                // Çoklu dosya kontrolü
+                if (!is_array($colorFiles)) {
+                    // Tek dosya ise çoklu dosya formatına çevir
+                    $colorFiles = [$colorFiles];
+                    $colorTypes = isset($colorImagesData['type'][$colorId]) ? 
+                        (is_array($colorImagesData['type'][$colorId]) ? $colorImagesData['type'][$colorId] : [$colorImagesData['type'][$colorId]]) : 
+                        [];
+                    $colorTmpNames = isset($colorImagesData['tmp_name'][$colorId]) ? 
+                        (is_array($colorImagesData['tmp_name'][$colorId]) ? $colorImagesData['tmp_name'][$colorId] : [$colorImagesData['tmp_name'][$colorId]]) : 
+                        [];
+                    $colorErrors = isset($colorImagesData['error'][$colorId]) ? 
+                        (is_array($colorImagesData['error'][$colorId]) ? $colorImagesData['error'][$colorId] : [$colorImagesData['error'][$colorId]]) : 
+                        [];
+                    $colorSizes = isset($colorImagesData['size'][$colorId]) ? 
+                        (is_array($colorImagesData['size'][$colorId]) ? $colorImagesData['size'][$colorId] : [$colorImagesData['size'][$colorId]]) : 
+                        [];
+                } else {
+                    $colorTypes = isset($colorImagesData['type'][$colorId]) && is_array($colorImagesData['type'][$colorId]) ? $colorImagesData['type'][$colorId] : [];
+                    $colorTmpNames = isset($colorImagesData['tmp_name'][$colorId]) && is_array($colorImagesData['tmp_name'][$colorId]) ? $colorImagesData['tmp_name'][$colorId] : [];
+                    $colorErrors = isset($colorImagesData['error'][$colorId]) && is_array($colorImagesData['error'][$colorId]) ? $colorImagesData['error'][$colorId] : [];
+                    $colorSizes = isset($colorImagesData['size'][$colorId]) && is_array($colorImagesData['size'][$colorId]) ? $colorImagesData['size'][$colorId] : [];
+                }
+                
+                error_log("handleColorImages: colorId $colorId has " . count($colorFiles) . " files");
+                
+                $sortOrder = 0;
+                foreach ($colorFiles as $key => $filename) {
+                    // Boş dosya adını atla
+                    if (empty($filename)) {
+                        continue;
+                    }
+                    
+                    if (!isset($colorErrors[$key]) || $colorErrors[$key] !== UPLOAD_ERR_OK) {
+                        error_log("handleColorImages: Upload error for colorId $colorId, file $key: " . ($colorErrors[$key] ?? 'not set'));
+                        continue;
+                    }
+                    
+                    $tmpName = $colorTmpNames[$key] ?? null;
+                    if (!$tmpName || !is_uploaded_file($tmpName)) {
+                        error_log("handleColorImages: Invalid tmp_name for colorId $colorId, file $key");
+                        continue;
+                    }
+                    
+                    $fileSize = $colorSizes[$key] ?? 0;
+                    $finfo = finfo_open(FILEINFO_MIME_TYPE);
+                    $mime = finfo_file($finfo, $tmpName);
+                    finfo_close($finfo);
+                    
+                    if (!in_array($mime, self::ALLOWED_TYPES, true) || $fileSize > self::MAX_IMAGE_SIZE) {
+                        error_log("handleColorImages: Invalid file type or size for colorId $colorId, file $key: mime=$mime, size=$fileSize");
+                        continue;
+                    }
+                    
+                    $ext = match ($mime) {
+                        'image/jpeg' => 'jpg',
+                        'image/png' => 'png',
+                        'image/webp' => 'webp',
+                        default => 'jpg',
+                    };
+                    
+                    $newFilename = $productId . '_color_' . $colorId . '_' . time() . '_' . $key . '_' . uniqid() . '.' . $ext;
+                    $path = $dir . '/' . $newFilename;
+                    
+                    if (move_uploaded_file($tmpName, $path)) {
+                        $relativePath = self::UPLOAD_DIR . '/' . $newFilename;
+                        $productName = $_POST['name'] ?? 'Ürün';
+                        
+                        // Veritabanına eklemeden önce attribute_value_id sütununun varlığını kontrol et
+                        try {
+                            $stmt = $pdo->prepare('INSERT INTO product_images (product_id, attribute_value_id, path, alt, is_main, sort_order, created_at) VALUES (?, ?, ?, ?, 0, ?, NOW())');
+                            $stmt->execute([$productId, $colorId, $relativePath, $productName, $sortOrder]);
+                            error_log("handleColorImages: Successfully saved image for colorId $colorId, file $key");
+                            $sortOrder++;
+                        } catch (\PDOException $e) {
+                            error_log("handleColorImages: Database error for colorId $colorId, file $key: " . $e->getMessage());
+                            // Dosyayı sil (veritabanına eklenemedi)
+                            @unlink($path);
+                        }
+                    } else {
+                        error_log("handleColorImages: Failed to move uploaded file for colorId $colorId, file $key");
+                    }
+                }
+            }
+        } else {
+            error_log('handleColorImages: $_FILES[color_images][name] is not set or not an array');
+        }
+    }
+
     private function handleVariants(PDO $pdo, int $productId): void
     {
         if (empty($_POST['variants']) || !is_array($_POST['variants'])) {
@@ -165,8 +307,15 @@ class ProductsController extends AdminBaseController
             }
             $variantSku = trim($variantData['sku']);
             $variantStock = (int) ($variantData['stock'] ?? 0);
-            $variantPrice = !empty($variantData['price']) ? (float) str_replace(',', '.', $variantData['price']) : null;
-            $variantSalePrice = !empty($variantData['sale_price']) ? (float) str_replace(',', '.', $variantData['sale_price']) : null;
+            // Fiyat kontrolü: boş string, null veya sadece boşluk ise null, aksi halde float'a çevir
+            $variantPrice = null;
+            if (isset($variantData['price']) && $variantData['price'] !== '' && trim($variantData['price']) !== '') {
+                $variantPrice = (float) str_replace(',', '.', trim($variantData['price']));
+            }
+            $variantSalePrice = null;
+            if (isset($variantData['sale_price']) && $variantData['sale_price'] !== '' && trim($variantData['sale_price']) !== '') {
+                $variantSalePrice = (float) str_replace(',', '.', trim($variantData['sale_price']));
+            }
             $attributeValueIds = !empty($variantData['attribute_value_ids']) && is_array($variantData['attribute_value_ids'])
                 ? array_map('intval', array_filter($variantData['attribute_value_ids']))
                 : [];
@@ -465,8 +614,21 @@ class ProductsController extends AdminBaseController
         $attributes = $pdo->query('SELECT id, name, type FROM attributes ORDER BY sort_order ASC, name ASC')->fetchAll(PDO::FETCH_ASSOC);
         $attributeValuesByAttr = [];
         foreach ($attributes as $a) {
-            $stmt = $pdo->prepare('SELECT id, value, color_hex FROM attribute_values WHERE attribute_id = ? ORDER BY sort_order ASC, value ASC');
-            $stmt->execute([$a['id']]);
+            // DISTINCT kullanarak aynı value'ya sahip duplicate kayıtları önle
+            // Aynı value'ya sahip kayıtlardan sadece en küçük ID'ye sahip olanı al
+            $stmt = $pdo->prepare('
+                SELECT av1.id, av1.value, av1.color_hex 
+                FROM attribute_values av1
+                INNER JOIN (
+                    SELECT MIN(id) as min_id, value, attribute_id
+                    FROM attribute_values
+                    WHERE attribute_id = ?
+                    GROUP BY value, attribute_id
+                ) av2 ON av1.id = av2.min_id AND av1.attribute_id = av2.attribute_id
+                WHERE av1.attribute_id = ?
+                ORDER BY av1.sort_order ASC, av1.value ASC
+            ');
+            $stmt->execute([$a['id'], $a['id']]);
             $attributeValuesByAttr[$a['id']] = $stmt->fetchAll(PDO::FETCH_ASSOC);
         }
         
@@ -481,6 +643,7 @@ class ProductsController extends AdminBaseController
             'brands' => $brands,
             'attributes' => $attributes,
             'attributeValuesByAttr' => $attributeValuesByAttr,
+            'colorImages' => [], // Yeni ürün için boş
             'errors' => $errors,
             'old' => $old,
         ]);
@@ -488,6 +651,8 @@ class ProductsController extends AdminBaseController
 
     private function store(): void
     {
+        $isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
+        
         $name = trim($_POST['name'] ?? '');
         $slug = trim($_POST['slug'] ?? '');
         $categoryId = isset($_POST['category_id']) && $_POST['category_id'] !== '' ? (int) $_POST['category_id'] : null;
@@ -506,17 +671,26 @@ class ProductsController extends AdminBaseController
         $isActive = isset($_POST['is_active']) ? 1 : 0;
         $metaTitle = trim($_POST['meta_title'] ?? '');
         $metaDescription = trim($_POST['meta_description'] ?? '');
+        $materialCare = trim($_POST['material_care'] ?? '');
+        $materialCare = $materialCare !== '' ? $materialCare : null;
 
         $errors = [];
         if ($name === '') {
             $errors['name'] = 'Ürün adı zorunludur.';
         }
-        if ($price < 0) {
-            $errors['price'] = 'Fiyat 0 veya üzeri olmalıdır.';
-        }
 
         $baseUrl = $this->baseUrl();
         if (!empty($errors)) {
+            if ($isAjax) {
+                header('Content-Type: application/json; charset=utf-8');
+                http_response_code(400);
+                echo json_encode([
+                    'success' => false,
+                    'message' => 'Form hataları var.',
+                    'errors' => $errors
+                ]);
+                return;
+            }
             $_SESSION['product_errors'] = $errors;
             $_SESSION['product_old'] = $_POST;
             header('Location: ' . $baseUrl . '/admin/products/create');
@@ -544,29 +718,53 @@ class ProductsController extends AdminBaseController
         try {
             // Ürünü ekle
             $stmt = $pdo->prepare('
-                INSERT INTO products (category_id, brand_id, name, slug, description, short_description, price, sale_price, sku, stock, low_stock_threshold, is_featured, is_new, is_active, sort_order, meta_title, meta_description, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
+                INSERT INTO products (category_id, brand_id, name, slug, description, short_description, material_care, price, sale_price, sku, stock, low_stock_threshold, is_featured, is_new, is_active, sort_order, meta_title, meta_description, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
             ');
             $stmt->execute([
-                $categoryId, $brandId, $name, $slug, $description ?: null, $shortDescription ?: null, 
+                $categoryId, $brandId, $name, $slug, $description ?: null, $shortDescription ?: null, $materialCare ?: null,
                 $price, $salePrice, $sku ?: null, $stock, $lowStockThreshold, 
                 $isFeatured, $isNew, $isActive, $sortOrder, $metaTitle ?: null, $metaDescription ?: null
             ]);
             $productId = (int) $pdo->lastInsertId();
 
-            // Çoklu görsel yükleme
-            $this->handleMultipleImages($productId, $name);
-
             // Varyantları ekle
             $this->handleVariants($pdo, $productId);
+            
+            // Renk bazlı fotoğrafları kaydet
+            $this->handleColorImages($pdo, $productId);
 
             $pdo->commit();
+            
+            if ($isAjax) {
+                header('Content-Type: application/json; charset=utf-8');
+                echo json_encode([
+                    'success' => true,
+                    'message' => 'Ürün başarıyla eklendi.',
+                    'productId' => $productId,
+                    'redirect' => $baseUrl . '/admin/products'
+                ]);
+                return;
+            }
+            
             $_SESSION['success'] = 'Ürün başarıyla eklendi.';
             header('Location: ' . $baseUrl . '/admin/products');
             exit;
         } catch (\Throwable $e) {
             $pdo->rollBack();
-            $_SESSION['product_errors'] = ['general' => 'Ürün eklenirken bir hata oluştu: ' . $e->getMessage()];
+            $errorMessage = 'Ürün eklenirken bir hata oluştu: ' . $e->getMessage();
+            
+            if ($isAjax) {
+                header('Content-Type: application/json; charset=utf-8');
+                http_response_code(500);
+                echo json_encode([
+                    'success' => false,
+                    'message' => $errorMessage
+                ]);
+                return;
+            }
+            
+            $_SESSION['product_errors'] = ['general' => $errorMessage];
             $_SESSION['product_old'] = $_POST;
             header('Location: ' . $baseUrl . '/admin/products/create');
             exit;
@@ -594,9 +792,25 @@ class ProductsController extends AdminBaseController
         }
         $categories = $pdo->query('SELECT id, name FROM categories ORDER BY name ASC')->fetchAll(PDO::FETCH_ASSOC);
         $brands = $pdo->query('SELECT id, name FROM brands ORDER BY name ASC')->fetchAll(PDO::FETCH_ASSOC);
-        $stmt = $pdo->prepare('SELECT id, path, alt, is_main, sort_order FROM product_images WHERE product_id = ? ORDER BY sort_order ASC, id ASC');
+        // Ürün fotoğraflarını çek (attribute_value_id NULL olanlar - genel ürün fotoğrafları)
+        $stmt = $pdo->prepare('SELECT id, path, alt, is_main, sort_order, attribute_value_id FROM product_images WHERE product_id = ? AND attribute_value_id IS NULL ORDER BY sort_order ASC, id ASC');
         $stmt->execute([$id]);
         $productImages = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        
+        // Renk bazlı fotoğrafları çek (attribute_value_id NULL olmayanlar)
+        $colorImagesStmt = $pdo->prepare('SELECT id, path, alt, attribute_value_id, sort_order FROM product_images WHERE product_id = ? AND attribute_value_id IS NOT NULL ORDER BY attribute_value_id ASC, sort_order ASC, id ASC');
+        $colorImagesStmt->execute([$id]);
+        $colorImagesRaw = $colorImagesStmt->fetchAll(PDO::FETCH_ASSOC);
+        
+        // Renk bazlı fotoğrafları colorId'ye göre grupla
+        $colorImages = [];
+        foreach ($colorImagesRaw as $img) {
+            $colorId = (int)$img['attribute_value_id'];
+            if (!isset($colorImages[$colorId])) {
+                $colorImages[$colorId] = [];
+            }
+            $colorImages[$colorId][] = $img;
+        }
 
         $variants = $pdo->prepare('
             SELECT pv.id, pv.sku, pv.stock, pv.price, pv.sale_price
@@ -627,8 +841,21 @@ class ProductsController extends AdminBaseController
         ')->fetchAll(PDO::FETCH_ASSOC);
         $attributeValuesByAttr = [];
         foreach ($attributes as $a) {
-            $stmt = $pdo->prepare('SELECT id, value, color_hex FROM attribute_values WHERE attribute_id = ? ORDER BY sort_order ASC, value ASC');
-            $stmt->execute([$a['id']]);
+            // DISTINCT kullanarak aynı value'ya sahip duplicate kayıtları önle
+            // Aynı value'ya sahip kayıtlardan sadece en küçük ID'ye sahip olanı al
+            $stmt = $pdo->prepare('
+                SELECT av1.id, av1.value, av1.color_hex 
+                FROM attribute_values av1
+                INNER JOIN (
+                    SELECT MIN(id) as min_id, value, attribute_id
+                    FROM attribute_values
+                    WHERE attribute_id = ?
+                    GROUP BY value, attribute_id
+                ) av2 ON av1.id = av2.min_id AND av1.attribute_id = av2.attribute_id
+                WHERE av1.attribute_id = ?
+                ORDER BY av1.sort_order ASC, av1.value ASC
+            ');
+            $stmt->execute([$a['id'], $a['id']]);
             $attributeValuesByAttr[$a['id']] = $stmt->fetchAll(PDO::FETCH_ASSOC);
         }
 
@@ -643,6 +870,7 @@ class ProductsController extends AdminBaseController
             'categories' => $categories,
             'brands' => $brands,
             'productImages' => $productImages,
+            'colorImages' => $colorImages, // Renk bazlı fotoğraflar
             'productVariants' => $productVariants,
             'attributes' => $attributes,
             'attributeValuesByAttr' => $attributeValuesByAttr,
@@ -653,6 +881,8 @@ class ProductsController extends AdminBaseController
 
     private function update(int $id): void
     {
+        $isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
+        
         $name = trim($_POST['name'] ?? '');
         $slug = trim($_POST['slug'] ?? '');
         $categoryId = isset($_POST['category_id']) && $_POST['category_id'] !== '' ? (int) $_POST['category_id'] : null;
@@ -671,17 +901,26 @@ class ProductsController extends AdminBaseController
         $isActive = isset($_POST['is_active']) ? 1 : 0;
         $metaTitle = trim($_POST['meta_title'] ?? '');
         $metaDescription = trim($_POST['meta_description'] ?? '');
+        $materialCare = trim($_POST['material_care'] ?? '');
+        $materialCare = $materialCare !== '' ? $materialCare : null;
 
         $errors = [];
         if ($name === '') {
             $errors['name'] = 'Ürün adı zorunludur.';
         }
-        if ($price < 0) {
-            $errors['price'] = 'Fiyat 0 veya üzeri olmalıdır.';
-        }
 
         $baseUrl = $this->baseUrl();
         if (!empty($errors)) {
+            if ($isAjax) {
+                header('Content-Type: application/json; charset=utf-8');
+                http_response_code(400);
+                echo json_encode([
+                    'success' => false,
+                    'message' => 'Form hataları var.',
+                    'errors' => $errors
+                ]);
+                return;
+            }
             $_SESSION['product_errors'] = $errors;
             $_SESSION['product_old'] = $_POST;
             header('Location: ' . $baseUrl . '/admin/products/edit?id=' . $id);
@@ -709,35 +948,81 @@ class ProductsController extends AdminBaseController
         try {
             // Ürünü güncelle
             $stmt = $pdo->prepare('
-                UPDATE products SET category_id = ?, brand_id = ?, name = ?, slug = ?, description = ?, short_description = ?, price = ?, sale_price = ?, sku = ?, stock = ?, low_stock_threshold = ?, is_featured = ?, is_new = ?, is_active = ?, sort_order = ?, meta_title = ?, meta_description = ?, updated_at = NOW()
+                UPDATE products SET category_id = ?, brand_id = ?, name = ?, slug = ?, description = ?, short_description = ?, material_care = ?, price = ?, sale_price = ?, sku = ?, stock = ?, low_stock_threshold = ?, is_featured = ?, is_new = ?, is_active = ?, sort_order = ?, meta_title = ?, meta_description = ?, updated_at = NOW()
                 WHERE id = ?
             ');
             $stmt->execute([
-                $categoryId, $brandId, $name, $slug, $description ?: null, $shortDescription ?: null, 
+                $categoryId, $brandId, $name, $slug, $description ?: null, $shortDescription ?: null, $materialCare ?: null, 
                 $price, $salePrice, $sku ?: null, $stock, $lowStockThreshold, 
                 $isFeatured, $isNew, $isActive, $sortOrder, $metaTitle ?: null, $metaDescription ?: null, $id
             ]);
 
-            // Çoklu görsel yükleme (yeni görseller)
-            $this->handleMultipleImages($id, $name);
-            
-            // Ana görsel güncelleme
-            if (isset($_POST['main_image_id']) && is_numeric($_POST['main_image_id'])) {
-                $mainImageId = (int) $_POST['main_image_id'];
-                $pdo->prepare('UPDATE product_images SET is_main = 0 WHERE product_id = ?')->execute([$id]);
-                $pdo->prepare('UPDATE product_images SET is_main = 1 WHERE id = ? AND product_id = ?')->execute([$mainImageId, $id]);
+            // Silinecek renk bazlı fotoğrafları işle
+            if (!empty($_POST['delete_color_images']) && is_array($_POST['delete_color_images'])) {
+                foreach ($_POST['delete_color_images'] as $imageId) {
+                    $imageId = (int) $imageId;
+                    if ($imageId > 0) {
+                        // Görsel dosyasını sil
+                        $imgStmt = $pdo->prepare('SELECT path FROM product_images WHERE id = ? AND product_id = ? AND attribute_value_id IS NOT NULL LIMIT 1');
+                        $imgStmt->execute([$imageId, $id]);
+                        $imgRow = $imgStmt->fetch(PDO::FETCH_ASSOC);
+                        if ($imgRow) {
+                            $filePath = BASE_PATH . '/public/' . $imgRow['path'];
+                            if (is_file($filePath)) {
+                                @unlink($filePath);
+                            }
+                        }
+                        // Veritabanından sil
+                        $pdo->prepare('DELETE FROM product_images WHERE id = ? AND product_id = ? AND attribute_value_id IS NOT NULL')->execute([$imageId, $id]);
+                    }
+                }
             }
 
             // Varyantları güncelle/sil/ekle
             $this->updateVariants($pdo, $id);
+            
+            // Renk bazlı fotoğrafları kaydet
+            $this->handleColorImages($pdo, $id);
 
             $pdo->commit();
+            
+            if ($isAjax) {
+                header('Content-Type: application/json; charset=utf-8');
+                $redirectUrl = $baseUrl . '/admin/products/edit?id=' . $id;
+                if (isset($_POST['active_tab']) && $_POST['active_tab'] === 'variants') {
+                    $redirectUrl .= '#variants';
+                }
+                echo json_encode([
+                    'success' => true,
+                    'message' => 'Ürün başarıyla güncellendi.',
+                    'redirect' => $redirectUrl
+                ]);
+                return;
+            }
+            
             $_SESSION['success'] = 'Ürün başarıyla güncellendi.';
-            header('Location: ' . $baseUrl . '/admin/products');
+            // Varyantlar sekmesinde isek, varyantlar sekmesine yönlendir
+            $redirectUrl = $baseUrl . '/admin/products/edit?id=' . $id;
+            if (isset($_POST['active_tab']) && $_POST['active_tab'] === 'variants') {
+                $redirectUrl .= '#variants';
+            }
+            header('Location: ' . $redirectUrl);
             exit;
         } catch (\Throwable $e) {
             $pdo->rollBack();
-            $_SESSION['product_errors'] = ['general' => 'Ürün güncellenirken bir hata oluştu: ' . $e->getMessage()];
+            $errorMessage = 'Ürün güncellenirken bir hata oluştu: ' . $e->getMessage();
+            
+            if ($isAjax) {
+                header('Content-Type: application/json; charset=utf-8');
+                http_response_code(500);
+                echo json_encode([
+                    'success' => false,
+                    'message' => $errorMessage
+                ]);
+                return;
+            }
+            
+            $_SESSION['product_errors'] = ['general' => $errorMessage];
             $_SESSION['product_old'] = $_POST;
             header('Location: ' . $baseUrl . '/admin/products/edit?id=' . $id);
             exit;
@@ -764,24 +1049,43 @@ class ProductsController extends AdminBaseController
                 
                 $variantSku = trim($variantData['sku'] ?? '');
                 $variantStock = (int) ($variantData['stock'] ?? 0);
-                $variantPrice = !empty($variantData['price']) ? (float) str_replace(',', '.', $variantData['price']) : null;
-                $variantSalePrice = !empty($variantData['sale_price']) ? (float) str_replace(',', '.', $variantData['sale_price']) : null;
+                // Fiyat kontrolü: boş string, null veya sadece boşluk ise null, aksi halde float'a çevir
+                $variantPrice = null;
+                if (isset($variantData['price']) && $variantData['price'] !== '' && trim($variantData['price']) !== '') {
+                    $variantPrice = (float) str_replace(',', '.', trim($variantData['price']));
+                    // 0 değeri geçerli bir fiyat olabilir, bu yüzden sadece boş/null kontrolü yapıyoruz
+                }
+                $variantSalePrice = null;
+                if (isset($variantData['sale_price']) && $variantData['sale_price'] !== '' && trim($variantData['sale_price']) !== '') {
+                    $variantSalePrice = (float) str_replace(',', '.', trim($variantData['sale_price']));
+                }
                 $attributeValueIds = !empty($variantData['attribute_value_ids']) && is_array($variantData['attribute_value_ids'])
                     ? array_map('intval', array_filter($variantData['attribute_value_ids']))
                     : [];
                 
                 if ($variantSku === '') continue;
                 
+                // Önce varyantın bu ürüne ait olduğunu ve var olduğunu kontrol et
+                $checkStmt = $pdo->prepare('SELECT id FROM product_variants WHERE id = ? AND product_id = ? LIMIT 1');
+                $checkStmt->execute([$variantId, $productId]);
+                if (!$checkStmt->fetch()) {
+                    // Bu variant bu ürüne ait değil veya mevcut değil, atla
+                    continue;
+                }
+                
                 // Varyantı güncelle
                 $stmt = $pdo->prepare('UPDATE product_variants SET sku = ?, stock = ?, price = ?, sale_price = ?, updated_at = NOW() WHERE id = ? AND product_id = ?');
                 $stmt->execute([$variantSku, $variantStock, $variantPrice, $variantSalePrice, $variantId, $productId]);
                 
-                // Attribute değerlerini güncelle
-                $pdo->prepare('DELETE FROM product_variant_attribute_values WHERE variant_id = ?')->execute([$variantId]);
-                foreach ($attributeValueIds as $avId) {
-                    if ($avId > 0) {
-                        $pdo->prepare('INSERT INTO product_variant_attribute_values (variant_id, attribute_value_id) VALUES (?, ?)')
-                            ->execute([$variantId, $avId]);
+                // UPDATE başarılı olduysa (en az 1 satır etkilendiyse) attribute değerlerini güncelle
+                if ($stmt->rowCount() > 0) {
+                    // Attribute değerlerini güncelle
+                    $pdo->prepare('DELETE FROM product_variant_attribute_values WHERE variant_id = ?')->execute([$variantId]);
+                    foreach ($attributeValueIds as $avId) {
+                        if ($avId > 0) {
+                            $pdo->prepare('INSERT INTO product_variant_attribute_values (variant_id, attribute_value_id) VALUES (?, ?)')
+                                ->execute([$variantId, $avId]);
+                        }
                     }
                 }
             }

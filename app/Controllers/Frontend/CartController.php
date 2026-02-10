@@ -181,10 +181,41 @@ class CartController extends FrontendBaseController
 
     public function remove(): void
     {
+        $isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
         $cartKey = trim($_REQUEST['cart_key'] ?? '');
-        if ($cartKey !== '') {
-            CartService::remove($cartKey);
+        
+        if ($cartKey === '') {
+            if ($isAjax) {
+                $this->json(['success' => false, 'message' => 'Geçersiz istek.']);
+            }
+            $this->redirect('/sepet');
+            return;
         }
+        
+        CartService::remove($cartKey);
+        
+        if ($isAjax) {
+            [$items, $subtotal] = self::getCartItems();
+            $cartCount = array_sum(array_column($items, 'quantity'));
+            $freeShippingMin = Settings::get('shipping', 'free_shipping_min');
+            $freeShippingMin = $freeShippingMin !== null && $freeShippingMin !== '' ? (float) str_replace(',', '.', $freeShippingMin) : 0.0;
+            $shippingCost = 0.0;
+            if ($freeShippingMin > 0 && $subtotal < $freeShippingMin) {
+                $cost = Settings::get('shipping', 'shipping_cost');
+                $shippingCost = $cost !== null && $cost !== '' ? (float) str_replace(',', '.', $cost) : 0.0;
+            }
+            $total = $subtotal + $shippingCost;
+            $this->json([
+                'success' => true,
+                'message' => 'Ürün sepetten çıkarıldı.',
+                'subtotal' => (float) $subtotal,
+                'shipping_cost' => (float) $shippingCost,
+                'total' => (float) $total,
+                'cart_count' => (int) $cartCount,
+            ]);
+            return;
+        }
+        
         $this->redirect('/sepet');
     }
 }

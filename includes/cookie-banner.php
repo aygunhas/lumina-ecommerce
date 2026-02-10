@@ -1,6 +1,49 @@
 <?php $baseUrl = $baseUrl ?? ''; ?>
-<div x-data="{ show: !localStorage.getItem('cookieConsent') }"
+<script>
+// Alpine.js başlamadan önce localStorage kontrolü yap
+(function() {
+    var consent = localStorage.getItem('cookieConsent');
+    // Sadece 'true' veya 'necessary' değerlerinde banner'ı gizle
+    if (consent === 'true' || consent === 'necessary') {
+        document.addEventListener('DOMContentLoaded', function() {
+            var banner = document.querySelector('[data-cookie-banner]');
+            if (banner) {
+                banner.style.display = 'none';
+            }
+        });
+    }
+})();
+</script>
+<div x-data="{ 
+        show: false,
+        init() {
+            // Başlangıçta localStorage kontrolü yap
+            var consent = localStorage.getItem('cookieConsent');
+            // Sadece 'true' veya 'necessary' değerlerinde banner'ı gizle
+            // null, 'false', veya başka bir değerde göster
+            this.show = !(consent === 'true' || consent === 'necessary');
+            
+            // localStorage değişikliklerini dinle (başka sekmede değişiklik olursa)
+            var self = this;
+            window.addEventListener('storage', function(e) {
+                if (e.key === 'cookieConsent') {
+                    var consent = e.newValue;
+                    self.show = !(consent === 'true' || consent === 'necessary');
+                }
+            });
+        },
+        acceptAll() {
+            localStorage.setItem('cookieConsent', 'true');
+            this.show = false;
+        },
+        acceptNecessary() {
+            localStorage.setItem('cookieConsent', 'necessary');
+            this.show = false;
+        }
+     }"
      x-show="show"
+     x-cloak
+     data-cookie-banner
      x-transition:enter="transition ease-out duration-400"
      x-transition:enter-start="translate-y-full opacity-0"
      x-transition:enter-end="translate-y-0 opacity-100"
@@ -40,12 +83,12 @@
         </div>
         <div class="px-6 sm:px-8 py-4 bg-subtle/30 border-t border-subtle flex flex-wrap items-center justify-end gap-3">
             <button type="button"
-                    @click="localStorage.setItem('cookieConsent', 'necessary'); show = false"
+                    @click="acceptNecessary()"
                     class="text-xs font-medium tracking-wide text-primary border border-primary bg-transparent px-4 py-2.5 rounded-sm hover:bg-primary hover:text-white transition-colors">
                 Sadece gerekli
             </button>
             <button type="button"
-                    @click="localStorage.setItem('cookieConsent', 'true'); show = false"
+                    @click="acceptAll()"
                     class="text-xs font-medium tracking-wide text-white bg-primary px-4 py-2.5 rounded-sm hover:opacity-90 transition-opacity">
                 Tümünü kabul et
             </button>

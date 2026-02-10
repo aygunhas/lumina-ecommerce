@@ -11,7 +11,6 @@ namespace App\Controllers\Frontend;
  * Bu sınıf şunları sağlar:
  * - baseUrl(): Base URL'i döndürür
  * - render(): View render et (includes/layout.php kullanır)
- * - renderWithIncludesLayout(): includes/layout.php kullanarak render et
  * - renderWithoutLayout(): Layout olmadan render et
  * - redirect(): Yönlendirme yapar
  * - json(): JSON response döndürür
@@ -63,18 +62,6 @@ abstract class FrontendBaseController
         require $layoutPath;
     }
 
-    /**
-     * includes/layout.php kullanarak render et
-     * Bu metod render() ile aynı işi yapar, geriye dönük uyumluluk için tutuldu
-     * 
-     * @param string $viewName View dosyasının yolu
-     * @param array $data View'a gönderilecek veriler
-     */
-    protected function renderWithIncludesLayout(string $viewName, array $data = []): void
-    {
-        // render() ile aynı işi yapıyor, tekrar kullan
-        $this->render($viewName, $data);
-    }
 
     /**
      * Layout olmadan render et (AJAX, JSON response için)

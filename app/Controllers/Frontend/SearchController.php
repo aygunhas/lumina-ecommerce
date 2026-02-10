@@ -5,12 +5,13 @@ declare(strict_types=1);
 namespace App\Controllers\Frontend;
 
 use App\Config\Database;
+use App\Models\Product;
 use PDO;
 
 /**
  * Mağaza: Ürün arama – kelime ile arama, sıralama, sayfalama; header için canlı öneri API
  */
-class SearchController
+class SearchController extends FrontendBaseController
 {
     private const PER_PAGE_OPTIONS = [12, 24];
     private const SUGGEST_LIMIT = 5;
@@ -24,11 +25,10 @@ class SearchController
     public function index(): void
     {
         $q = trim($_GET['q'] ?? '');
-        $baseUrl = $this->baseUrl();
         if ($q === '') {
-            header('Location: ' . $baseUrl . '/');
-            exit;
+            $this->redirect('/');
         }
+        $baseUrl = $this->baseUrl();
         $sort = $_GET['sort'] ?? 'newest';
         if (!isset(self::SORT_OPTIONS[$sort])) {
             $sort = 'newest';
@@ -40,10 +40,11 @@ class SearchController
         $page = max(1, (int) ($_GET['page'] ?? 1));
         $offset = ($page - 1) * $perPage;
 
-        $pdo = Database::getConnection();
         [$orderCol, $orderDir] = self::SORT_OPTIONS[$sort];
-        $safeCol = $orderCol === 'created_at' ? 'p.created_at' : 'p.' . $orderCol;
-
+        $orderBy = $orderCol === 'created_at' ? 'p.created_at ' . $orderDir : 'p.' . $orderCol . ' ' . $orderDir . ', p.id ASC';
+        
+        // Toplam kayıt sayısı için ayrı sorgu
+        $pdo = Database::getConnection();
         $term = '%' . $q . '%';
         $countSql = "SELECT COUNT(*) FROM products p WHERE p.is_active = 1 AND (p.name LIKE ? OR p.sku LIKE ? OR p.short_description LIKE ?)";
         $stmt = $pdo->prepare($countSql);
@@ -53,30 +54,51 @@ class SearchController
         $page = min($page, max(1, $totalPages));
         $offset = ($page - 1) * $perPage;
 
-        $sql = "SELECT p.id, p.name, p.slug, p.price, p.sale_price, p.short_description, p.is_featured, p.is_new
-                FROM products p
-                WHERE p.is_active = 1 AND (p.name LIKE ? OR p.sku LIKE ? OR p.short_description LIKE ?)
-                ORDER BY $safeCol $orderDir, p.id ASC
-                LIMIT $perPage OFFSET $offset";
-        $stmt = $pdo->prepare($sql);
-        $stmt->execute([$term, $term, $term]);
-        $products = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        // Product Model kullanarak arama yap
+        $products = Product::search($q, [
+            'orderBy' => $orderBy,
+            'limit' => $perPage,
+            'offset' => $offset
+        ]);
 
         $productImages = [];
+        $productHasVariants = [];
+        $productColorImages = [];
+        $productColorVariants = [];
         if (!empty($products)) {
             $ids = array_column($products, 'id');
-            $placeholders = implode(',', array_fill(0, count($ids), '?'));
-            $stmt = $pdo->prepare("SELECT product_id, path FROM product_images WHERE product_id IN ($placeholders) ORDER BY sort_order ASC, id ASC");
-            $stmt->execute($ids);
-            while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
-                if (!isset($productImages[$row['product_id']])) {
-                    $productImages[$row['product_id']] = $row['path'];
+            $productImages = Product::getMainImagesForProducts($ids);
+            $productHasVariants = Product::hasVariantsForProducts($ids);
+            $productColorImages = Product::getColorImagesForProducts($ids);
+            
+            // Her ürün için renk varyantlarını çek
+            $pdo = Database::getConnection();
+            foreach ($ids as $productId) {
+                // Renk attribute'unu bul
+                $colorAttrStmt = $pdo->prepare('SELECT id FROM attributes WHERE type = ? LIMIT 1');
+                $colorAttrStmt->execute(['color']);
+                $colorAttrId = $colorAttrStmt->fetchColumn();
+                
+                if ($colorAttrId) {
+                    // Bu ürünün varyantlarındaki renkleri çek
+                    $variantStmt = $pdo->prepare('
+                        SELECT DISTINCT av.id, av.value, av.color_hex, av.sort_order
+                        FROM product_variants pv
+                        INNER JOIN product_variant_attribute_values pvav ON pv.id = pvav.variant_id
+                        INNER JOIN attribute_values av ON pvav.attribute_value_id = av.id
+                        WHERE pv.product_id = ? AND av.attribute_id = ?
+                        ORDER BY av.sort_order ASC
+                    ');
+                    $variantStmt->execute([$productId, $colorAttrId]);
+                    $productColorVariants[$productId] = $variantStmt->fetchAll(PDO::FETCH_ASSOC);
+                } else {
+                    $productColorVariants[$productId] = [];
                 }
             }
         }
 
         $title = 'Arama: ' . $q . ' - ' . env('APP_NAME', 'Lumina Boutique');
-        $this->render('frontend/search/index', compact('title', 'baseUrl', 'q', 'products', 'productImages', 'sort', 'perPage', 'page', 'totalPages', 'totalRows'));
+        $this->render('frontend/search/index', compact('title', 'baseUrl', 'q', 'products', 'productImages', 'productHasVariants', 'productColorImages', 'productColorVariants', 'sort', 'perPage', 'page', 'totalPages', 'totalRows'));
     }
 
     /**
@@ -84,63 +106,35 @@ class SearchController
      */
     public function suggest(): void
     {
-        header('Content-Type: application/json; charset=utf-8');
         $q = trim($_GET['q'] ?? '');
         if (strlen($q) < 1) {
-            echo json_encode(['products' => [], 'categories' => []]);
-            return;
+            $this->json(['products' => [], 'categories' => []]);
         }
-        $pdo = Database::getConnection();
-        $term = '%' . $q . '%';
 
-        $products = [];
-        $stmt = $pdo->prepare("SELECT p.id, p.name, p.slug, p.price, p.sale_price FROM products p WHERE p.is_active = 1 AND (p.name LIKE ? OR p.sku LIKE ? OR p.short_description LIKE ?) ORDER BY p.name ASC LIMIT " . self::SUGGEST_LIMIT);
-        $stmt->execute([$term, $term, $term]);
-        $products = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        // Product Model kullanarak arama yap
+        $products = Product::search($q, [
+            'orderBy' => 'p.name ASC',
+            'limit' => self::SUGGEST_LIMIT
+        ]);
+
+        // Ürün görsellerini ekle
         $productImages = [];
         if (!empty($products)) {
             $ids = array_column($products, 'id');
-            $placeholders = implode(',', array_fill(0, count($ids), '?'));
-            $stmt = $pdo->prepare("SELECT product_id, path FROM product_images WHERE product_id IN ($placeholders) ORDER BY sort_order ASC, id ASC");
-            $stmt->execute($ids);
-            while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
-                if (!isset($productImages[$row['product_id']])) {
-                    $productImages[$row['product_id']] = $row['path'];
-                }
-            }
+            $productImages = Product::getMainImagesForProducts($ids);
         }
         foreach ($products as &$p) {
             $p['image'] = $productImages[$p['id']] ?? null;
         }
         unset($p);
 
-        $categories = [];
+        // Kategoriler için hala PDO kullanıyoruz (Category Model'e search metodu eklenebilir)
+        $pdo = Database::getConnection();
+        $term = '%' . $q . '%';
         $stmt = $pdo->prepare("SELECT id, name, slug FROM categories WHERE is_active = 1 AND name LIKE ? ORDER BY name ASC LIMIT " . self::SUGGEST_LIMIT);
         $stmt->execute([$term]);
         $categories = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-        echo json_encode(['products' => $products, 'categories' => $categories], JSON_UNESCAPED_UNICODE);
-    }
-
-    private function baseUrl(): string
-    {
-        $script = $_SERVER['SCRIPT_NAME'] ?? '';
-        $base = dirname($script);
-        return ($base === '/' || $base === '\\') ? '' : $base;
-    }
-
-    private function render(string $view, array $data = []): void
-    {
-        extract($data, EXTR_SKIP);
-        $viewPath = BASE_PATH . '/app/Views/' . str_replace('.', '/', $view) . '.php';
-        if (!is_file($viewPath)) {
-            echo '<p>Görünüm bulunamadı.</p>';
-            return;
-        }
-        ob_start();
-        require $viewPath;
-        $content = ob_get_clean();
-        $layoutPath = BASE_PATH . '/app/Views/frontend/layouts/main.php';
-        require $layoutPath;
+        $this->json(['products' => $products, 'categories' => $categories]);
     }
 }

@@ -74,7 +74,22 @@ $freeShippingRemaining = $freeShippingMin > 0 && $subtotal < $freeShippingMin ? 
                                 <?php if (!empty($item['attributes_summary'])): ?>
                                     <p class="text-gray-500 text-xs mt-1"><?= htmlspecialchars($item['attributes_summary']) ?></p>
                                 <?php endif; ?>
-                                <a href="<?= htmlspecialchars($baseUrl) ?>/sepet/sil?cart_key=<?= htmlspecialchars(urlencode($cartKey)) ?>" class="text-xs text-red-900 underline mt-3 hover:no-underline cursor-pointer inline-block">Sil</a>
+                                <?php if ($maxQty > 0 && $maxQty < 999 && $maxQty <= 5): ?>
+                                    <p class="text-xs text-amber-600 mt-1 flex items-center gap-1">
+                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-3 h-3">
+                                            <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
+                                        </svg>
+                                        Stokta sadece <?= $maxQty ?> adet kaldı
+                                    </p>
+                                <?php elseif ($maxQty > 0 && $maxQty < 999 && $maxQty <= 10): ?>
+                                    <p class="text-xs text-gray-500 mt-1">Stok: <?= $maxQty ?> adet</p>
+                                <?php endif; ?>
+                                <button type="button" 
+                                        class="cart-remove-btn text-xs text-red-900 underline mt-3 hover:no-underline cursor-pointer inline-block bg-transparent border-0 p-0"
+                                        data-cart-key="<?= htmlspecialchars($cartKey) ?>"
+                                        aria-label="Ürünü sepetten çıkar">
+                                    Sil
+                                </button>
                             </div>
                         </div>
 
@@ -222,7 +237,83 @@ $freeShippingRemaining = $freeShippingMin > 0 && $subtotal < $freeShippingMin ? 
     });
 
 
+    function removeItem(cartKey, row) {
+        var removeUrl = (baseUrl || '') + '/sepet/sil';
+        var fd = new FormData();
+        fd.append('cart_key', cartKey);
+        var req = new XMLHttpRequest();
+        req.open('POST', removeUrl);
+        req.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+        req.setRequestHeader('Accept', 'application/json');
+        req.onload = function() {
+            try {
+                var data = JSON.parse(req.responseText);
+                if (data.success) {
+                    // Satırı kaldır
+                    if (row) {
+                        row.style.transition = 'opacity 0.3s ease-out';
+                        row.style.opacity = '0';
+                        setTimeout(function() {
+                            row.remove();
+                            var list = document.getElementById('cart-page-rows');
+                            var remainingRows = list ? list.querySelectorAll('.cart-page-row').length : 0;
+                            if (remainingRows === 0) {
+                                // Sepet boş, boş sepet mesajını göster
+                                var emptyCartHtml = '<div class="py-16 text-center"><p class="text-secondary mb-4">Sepetiniz boş.</p><a href="' + (baseUrl || '') + '/" class="inline-block text-xs font-bold uppercase tracking-widest text-primary underline hover:no-underline">Alışverişe başlayın</a></div>';
+                                var cartContent = document.querySelector('.lg\\:col-span-8');
+                                if (cartContent) {
+                                    cartContent.innerHTML = emptyCartHtml;
+                                }
+                                // Sağ kolon özetini gizle
+                                var summaryCol = document.querySelector('.lg\\:col-span-4');
+                                if (summaryCol) {
+                                    summaryCol.style.display = 'none';
+                                }
+                                return;
+                            }
+                        }, 300);
+                    }
+                    // Özeti güncelle
+                    updateSummary(data);
+                    // Toast göster
+                    if (typeof window.dispatchEvent === 'function') {
+                        window.dispatchEvent(new CustomEvent('notify', { detail: { message: data.message || 'Ürün sepetten çıkarıldı.' } }));
+                    }
+                    // Sepet drawer'ı güncelle
+                    if (typeof window.dispatchEvent === 'function') {
+                        window.dispatchEvent(new CustomEvent('cart-updated'));
+                    }
+                } else {
+                    if (typeof window.dispatchEvent === 'function') {
+                        window.dispatchEvent(new CustomEvent('notify', { detail: { message: data.message || 'Bir hata oluştu.' } }));
+                    }
+                }
+            } catch (err) {
+                if (typeof window.dispatchEvent === 'function') {
+                    window.dispatchEvent(new CustomEvent('notify', { detail: { message: 'Bir hata oluştu.' } }));
+                }
+            }
+        };
+        req.onerror = function() {
+            if (typeof window.dispatchEvent === 'function') {
+                window.dispatchEvent(new CustomEvent('notify', { detail: { message: 'Bir hata oluştu.' } }));
+            }
+        };
+        req.send(fd);
+    }
+
     document.getElementById('cart-page-rows').addEventListener('click', function(e) {
+        var removeBtn = e.target.closest('.cart-remove-btn');
+        if (removeBtn) {
+            e.preventDefault();
+            var cartKey = removeBtn.dataset.cartKey;
+            var row = removeBtn.closest('.cart-page-row');
+            if (cartKey && row) {
+                removeItem(cartKey, row);
+            }
+            return;
+        }
+        
         var minus = e.target.closest('.cart-qty-minus');
         var plus = e.target.closest('.cart-qty-plus');
         if (!minus && !plus) return;

@@ -5,12 +5,13 @@ declare(strict_types=1);
 namespace App\Controllers\Frontend;
 
 use App\Config\Database;
+use App\Models\User;
 use PDO;
 
 /**
  * Mağaza: Üye kayıt, giriş, çıkış
  */
-class UserAuthController
+class UserAuthController extends FrontendBaseController
 {
     public function registerForm(): void
     {
@@ -19,8 +20,7 @@ class UserAuthController
             return;
         }
         if (!empty($_SESSION['user_id'])) {
-            header('Location: ' . $this->baseUrl() . '/hesabim');
-            exit;
+            $this->redirect('/hesabim');
         }
         $title = 'Kayıt ol - ' . env('APP_NAME', 'Lumina Boutique');
         $baseUrl = $this->baseUrl();
@@ -33,12 +33,10 @@ class UserAuthController
     private function registerStore(): void
     {
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-            header('Location: ' . $this->baseUrl() . '/kayit');
-            exit;
+            $this->redirect('/kayit');
         }
         if (!empty($_SESSION['user_id'])) {
-            header('Location: ' . $this->baseUrl() . '/hesabim');
-            exit;
+            $this->redirect('/hesabim');
         }
         $email = trim($_POST['email'] ?? '');
         $password = $_POST['password'] ?? '';
@@ -76,29 +74,28 @@ class UserAuthController
         if (!empty($errors)) {
             $_SESSION['register_errors'] = $errors;
             $_SESSION['register_old'] = $_POST;
-            header('Location: ' . $baseUrl . '/kayit');
-            exit;
+            $this->redirect('/kayit');
         }
 
-        $pdo = Database::getConnection();
-        $stmt = $pdo->prepare('SELECT id FROM users WHERE email = ? LIMIT 1');
-        $stmt->execute([$email]);
-        if ($stmt->fetch()) {
+        // E-posta kontrolü
+        if (User::findByEmail($email)) {
             $_SESSION['register_errors'] = ['email' => 'Bu e-posta adresi zaten kayıtlı.'];
             $_SESSION['register_old'] = $_POST;
-            header('Location: ' . $baseUrl . '/kayit');
-            exit;
+            $this->redirect('/kayit');
         }
 
-        $hash = password_hash($password, PASSWORD_DEFAULT);
-        $pdo->prepare('INSERT INTO users (email, password, first_name, last_name, phone, is_active, created_at, updated_at) VALUES (?, ?, ?, ?, ?, 1, NOW(), NOW())')
-            ->execute([$email, $hash, $firstName, $lastName, $phone ?: null]);
-        $userId = (int) $pdo->lastInsertId();
+        // Yeni kullanıcı oluştur
+        $userId = User::create([
+            'email' => $email,
+            'password' => $password,
+            'first_name' => $firstName,
+            'last_name' => $lastName,
+            'phone' => $phone ?: null
+        ]);
         $_SESSION['user_id'] = $userId;
         $_SESSION['user_email'] = $email;
         $_SESSION['user_name'] = trim($firstName . ' ' . $lastName);
-        header('Location: ' . $baseUrl . '/hesabim');
-        exit;
+        $this->redirect('/hesabim');
     }
 
     public function loginForm(): void
@@ -108,8 +105,7 @@ class UserAuthController
             return;
         }
         if (!empty($_SESSION['user_id'])) {
-            header('Location: ' . $this->baseUrl() . '/hesabim');
-            exit;
+            $this->redirect('/hesabim');
         }
         $title = 'Giriş yap - ' . env('APP_NAME', 'Lumina Boutique');
         $baseUrl = $this->baseUrl();
@@ -123,12 +119,10 @@ class UserAuthController
     private function loginSubmit(): void
     {
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-            header('Location: ' . $this->baseUrl() . '/giris');
-            exit;
+            $this->redirect('/giris');
         }
         if (!empty($_SESSION['user_id'])) {
-            header('Location: ' . $this->baseUrl() . '/hesabim');
-            exit;
+            $this->redirect('/hesabim');
         }
         $email = trim($_POST['email'] ?? '');
         $password = $_POST['password'] ?? '';
@@ -146,19 +140,14 @@ class UserAuthController
         if (!empty($errors)) {
             $_SESSION['login_errors'] = $errors;
             $_SESSION['login_old'] = ['email' => $email];
-            header('Location: ' . $baseUrl . '/giris');
-            exit;
+            $this->redirect('/giris');
         }
 
-        $pdo = Database::getConnection();
-        $stmt = $pdo->prepare('SELECT id, email, password, first_name, last_name, is_active FROM users WHERE email = ? LIMIT 1');
-        $stmt->execute([$email]);
-        $user = $stmt->fetch(PDO::FETCH_ASSOC);
-        if (!$user || (int) $user['is_active'] !== 1 || !password_verify($password, $user['password'])) {
+        $user = User::findActiveByEmail($email);
+        if (!$user || (int) $user['is_active'] !== 1 || !User::verifyPassword($password, $user['password'])) {
             $_SESSION['login_errors'] = ['email' => 'E-posta veya şifre hatalı.'];
             $_SESSION['login_old'] = ['email' => $email];
-            header('Location: ' . $baseUrl . '/giris');
-            exit;
+            $this->redirect('/giris');
         }
 
         $_SESSION['user_id'] = (int) $user['id'];
@@ -167,15 +156,13 @@ class UserAuthController
         $firstName = trim($user['first_name'] ?? '');
         $_SESSION['toast_message'] = $firstName !== '' ? 'Hoş geldiniz, ' . $firstName . '!' : 'Hoş geldiniz!';
         $_SESSION['toast_type'] = 'success';
-        header('Location: ' . $baseUrl . '/');
-        exit;
+        $this->redirect('/');
     }
 
     public function logout(): void
     {
         unset($_SESSION['user_id'], $_SESSION['user_email'], $_SESSION['user_name']);
-        header('Location: ' . $this->baseUrl() . '/');
-        exit;
+        $this->redirect('/');
     }
 
     /** Şifremi unuttum – e-posta girişi (split screen, Alpine state form/success) */
@@ -205,25 +192,4 @@ class UserAuthController
         $this->render('frontend/auth/reset-password', compact('title', 'baseUrl', 'token', 'errors', 'old'));
     }
 
-    private function baseUrl(): string
-    {
-        $script = $_SERVER['SCRIPT_NAME'] ?? '';
-        $base = dirname($script);
-        return ($base === '/' || $base === '\\') ? '' : $base;
-    }
-
-    private function render(string $view, array $data = []): void
-    {
-        extract($data, EXTR_SKIP);
-        $viewPath = BASE_PATH . '/app/Views/' . str_replace('.', '/', $view) . '.php';
-        if (!is_file($viewPath)) {
-            echo '<p>Görünüm bulunamadı.</p>';
-            return;
-        }
-        ob_start();
-        require $viewPath;
-        $content = ob_get_clean();
-        $layoutPath = BASE_PATH . '/app/Views/frontend/layouts/main.php';
-        require $layoutPath;
-    }
 }

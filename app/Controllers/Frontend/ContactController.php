@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Controllers\Frontend;
 
 use App\Config\Database;
+use App\Models\ContactMessage;
 
 /**
  * Mağaza: İletişim sayfası ve iletişim formu
@@ -50,9 +51,13 @@ class ContactController extends FrontendBaseController
             $_SESSION['contact_errors'] = $errors;
             $this->redirect('/iletisim');
         }
-        $pdo = Database::getConnection();
-        $stmt = $pdo->prepare('INSERT INTO contact_messages (name, email, phone, subject, message, created_at) VALUES (?, ?, ?, ?, ?, NOW())');
-        $stmt->execute([$name, $email, $phone ?: null, $subject ?: null, $message]);
+        ContactMessage::create([
+            'name' => $name,
+            'email' => $email,
+            'phone' => $phone ?: null,
+            'subject' => $subject ?: null,
+            'message' => $message
+        ]);
         $_SESSION['contact_success'] = true;
         $this->redirect('/iletisim?sent=1');
     }
